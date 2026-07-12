@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Elit Home — Stok Yönetimi</title>
+<meta name="description" content="Elit Home mağazaları için gerçek zamanlı, çoklu mağaza stok yönetim paneli." />
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#262220" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Elit Home" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" href="icons/icon-192.png" type="image/png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ================= LOGIN ================= -->
+  <section id="loginScreen">
+    <div style="width:100%;">
+      <div id="setupWarning" class="setup-warning" style="display:none;">
+        Firebase yapılandırması henüz tanımlanmadı. <code>js/firebase-config.js</code>
+        dosyasındaki <code>FIREBASE_CONFIG</code> nesnesini kendi Firebase projenizin
+        bilgileriyle değiştirin ve Authentication → Email/Password ile
+        Firestore Database'i etkinleştirin.
+      </div>
+      <div class="login-card">
+        <div class="brand">
+          <div class="mark">Elit <span>Home</span></div>
+          <div class="tagline">3 Mağaza · Tek Panel · Stok Takibi</div>
+        </div>
+
+        <div class="login-tabs">
+          <button type="button" id="tabLogin" class="active">Giriş Yap</button>
+          <button type="button" id="tabSignup">Hesap Oluştur</button>
+        </div>
+
+        <form id="loginForm">
+          <div class="field">
+            <label for="usernameInput">Kullanıcı Adı</label>
+            <input type="text" id="usernameInput" autocomplete="username" placeholder="ör. ayse.magaza1" required />
+          </div>
+          <div class="field">
+            <label for="passwordInput">Şifre</label>
+            <input type="password" id="passwordInput" autocomplete="current-password" placeholder="••••••••" required minlength="6" />
+          </div>
+          <button type="submit" class="primary-btn" id="submitBtn">Giriş Yap</button>
+          <div class="login-msg" id="loginMsg"></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= APP ================= -->
+  <section id="appScreen">
+    <header class="topbar">
+      <div>
+        <div class="brand-inline">Elit <span>Home</span></div>
+        <div class="sub">Stok Yönetim Paneli</div>
+      </div>
+      <div class="user-block">
+        <span>Giriş yapan: <strong id="currentUserLabel">—</strong></span>
+        <button class="logout-btn" id="logoutBtn">Çıkış Yap</button>
+      </div>
+    </header>
+
+    <main class="boards" id="boards">
+      <!-- store-card'lar JS ile dolduruluyor -->
+    </main>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
