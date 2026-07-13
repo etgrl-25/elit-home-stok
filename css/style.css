@@ -63,6 +63,7 @@ body::before{
 .login-card{
   width:100%;
   max-width:380px;
+  margin:0 auto;
   background:var(--card);
   border:1px solid var(--line);
   border-radius:var(--radius);
