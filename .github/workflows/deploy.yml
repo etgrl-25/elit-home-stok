@@ -1,0 +1,50 @@
+name: GitHub Pages'e yayınla
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: firebase-config.js dosyasını secrets ile oluştur
+        run: |
+          cat > js/firebase-config.js << EOF
+          export const FIREBASE_CONFIG = {
+            apiKey: "${{ secrets.FIREBASE_API_KEY }}",
+            authDomain: "${{ secrets.FIREBASE_AUTH_DOMAIN }}",
+            projectId: "${{ secrets.FIREBASE_PROJECT_ID }}",
+            storageBucket: "${{ secrets.FIREBASE_STORAGE_BUCKET }}",
+            messagingSenderId: "${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}",
+            appId: "${{ secrets.FIREBASE_APP_ID }}"
+          };
+          EOF
+
+      - name: Pages için yapılandır
+        uses: actions/configure-pages@v5
+
+      - name: Site dosyalarını paketle
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Yayınla
+        id: deployment
+        uses: actions/deploy-pages@v4
