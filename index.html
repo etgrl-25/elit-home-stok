@@ -8,7 +8,7 @@
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json" />
-<meta name="theme-color" content="#262220" />
+<meta name="theme-color" content="#0A0A0A" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -36,7 +36,7 @@
       <div class="login-card">
         <div class="brand">
           <div class="mark">Elit <span>Home</span></div>
-          <div class="tagline">3 Mağaza · Tek Panel · Stok Takibi</div>
+          <div class="tagline">Çoklu Mağaza · Tek Panel · Stok Takibi</div>
         </div>
 
         <div class="login-tabs">
@@ -47,7 +47,7 @@
         <form id="loginForm">
           <div class="field">
             <label for="usernameInput">Kullanıcı Adı</label>
-            <input type="text" id="usernameInput" autocomplete="username" placeholder="ör. ayse.magaza1" required />
+            <input type="text" id="usernameInput" autocomplete="username" placeholder="ör. ayse" required />
           </div>
           <div class="field">
             <label for="passwordInput">Şifre</label>
@@ -62,20 +62,62 @@
 
   <!-- ================= APP ================= -->
   <section id="appScreen">
-    <header class="topbar">
-      <div>
-        <div class="brand-inline">Elit <span>Home</span></div>
-        <div class="sub">Stok Yönetim Paneli</div>
-      </div>
-      <div class="user-block">
-        <span>Giriş yapan: <strong id="currentUserLabel">—</strong></span>
-        <button class="logout-btn" id="logoutBtn">Çıkış Yap</button>
-      </div>
-    </header>
+    <div class="app-shell">
 
-    <main class="boards" id="boards">
-      <!-- store-card'lar JS ile dolduruluyor -->
-    </main>
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-head">
+          <div class="brand-inline">Elit <span>Home</span></div>
+          <button id="sidebarClose" class="sidebar-close" aria-label="Menüyü kapat">✕</button>
+        </div>
+
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-view="overview" type="button">
+            <span class="nav-ico">▦</span> Genel Bakış
+          </button>
+          <button class="nav-item" data-view="stores" type="button">
+            <span class="nav-ico">▥</span> Mağazalar
+          </button>
+        </nav>
+
+        <div class="sidebar-stores">
+          <div class="sidebar-stores-title">Mağazalarım</div>
+          <div id="sidebarStoreList" class="sidebar-store-list"></div>
+          <form id="addStoreForm" class="add-store-form">
+            <input type="text" id="newStoreName" placeholder="Yeni mağaza adı" maxlength="40" required />
+            <button type="submit">+</button>
+          </form>
+        </div>
+
+        <div class="sidebar-foot">
+          <div class="user-block">
+            <span>Giriş: <strong id="currentUserLabel">—</strong></span>
+          </div>
+          <button class="logout-btn" id="logoutBtn">Çıkış Yap</button>
+        </div>
+      </aside>
+
+      <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+
+      <div class="main-area">
+        <header class="topbar">
+          <button id="menuToggle" class="menu-toggle" aria-label="Menüyü aç">☰</button>
+          <div>
+            <div class="topbar-title" id="viewTitle">Genel Bakış</div>
+            <div class="topbar-sub">Stok Yönetim Paneli</div>
+          </div>
+        </header>
+
+        <main id="overviewView" class="boards"></main>
+
+        <main id="storesView" class="store-detail" style="display:none;">
+          <div class="store-picker-row">
+            <label for="storeSelect">Mağaza seç</label>
+            <select id="storeSelect"></select>
+          </div>
+          <div id="storeDetailWrap"></div>
+        </main>
+      </div>
+    </div>
   </section>
 
 </div>

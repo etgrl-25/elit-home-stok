@@ -1,13 +1,13 @@
 {
   "name": "Elit Home — Stok Yönetimi",
   "short_name": "Elit Home",
-  "description": "3 mağazanın stoklarını tek panelden görüntüleyip yönetin.",
+  "description": "Çoklu mağaza stoklarını tek panelden görüntüleyip yönetin.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#E7E1D4",
-  "theme_color": "#262220",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0A0A0A",
   "lang": "tr",
   "icons": [
     {
