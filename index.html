@@ -77,6 +77,15 @@
           <button class="nav-item" data-view="stores" type="button">
             <span class="nav-ico">▥</span> Mağazalar
           </button>
+          <button class="nav-item" data-view="search" type="button">
+            <span class="nav-ico">⌕</span> Tüm Ürünlerde Ara
+          </button>
+          <button class="nav-item" data-view="showroom" type="button">
+            <span class="nav-ico">◈</span> Teşhir Ürünler
+          </button>
+          <button class="nav-item" data-view="categories" type="button">
+            <span class="nav-ico">▤</span> Ürün Türleri
+          </button>
         </nav>
 
         <div class="sidebar-stores">
@@ -116,9 +125,101 @@
           </div>
           <div id="storeDetailWrap"></div>
         </main>
+
+        <!-- ============ TÜM ÜRÜNLERDE ARA ============ -->
+        <main id="searchView" class="search-view" style="display:none;">
+          <div class="search-bar-row">
+            <input type="text" id="globalSearchInput" placeholder="Ürün adı, açıklama veya tür ara…" autocomplete="off" />
+          </div>
+          <div id="globalSearchResults" class="global-search-results"></div>
+        </main>
+
+        <!-- ============ TEŞHİR ÜRÜNLER ============ -->
+        <main id="showroomView" class="store-detail" style="display:none;">
+          <div id="showroomWrap"></div>
+        </main>
+
+        <!-- ============ ÜRÜN TÜRLERİ (KATEGORİLER) ============ -->
+        <main id="categoriesView" class="categories-view" style="display:none;">
+          <div class="cat-add-row">
+            <label class="cat-icon-upload" for="newCategoryIconInput">
+              <img id="newCategoryIconPreview" style="display:none;" alt="" />
+              <span id="newCategoryIconPlaceholder">İkon</span>
+              <input type="file" accept="image/*" id="newCategoryIconInput" hidden />
+            </label>
+            <input type="text" id="newCategoryName" placeholder="Yeni tür adı (ör. Koltuk Takımları)" maxlength="40" />
+            <button id="addCategoryBtn" class="add-btn" title="Tür ekle">+</button>
+          </div>
+          <div id="categoriesList" class="categories-list"></div>
+        </main>
       </div>
     </div>
   </section>
+
+  <!-- ============ ÜRÜN DETAY MODALI ============ -->
+  <div id="productModalBackdrop" class="modal-backdrop" style="display:none;">
+    <div class="modal product-modal">
+      <button class="modal-close" id="productModalClose" aria-label="Kapat">✕</button>
+
+      <div class="product-modal-image-wrap">
+        <img id="productModalImg" class="product-modal-img" style="display:none;" alt="" />
+        <div id="productModalImgPlaceholder" class="product-modal-img-placeholder">Görsel yok</div>
+        <div class="product-modal-image-actions">
+          <label class="image-upload-btn" for="productModalImageInput">Görsel Ekle / Değiştir</label>
+          <input type="file" accept="image/*" id="productModalImageInput" hidden />
+          <button type="button" id="productModalImageRemove" class="image-remove-btn" style="display:none;">Görseli Kaldır</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="productModalName">Ürün Adı</label>
+        <input type="text" id="productModalName" maxlength="80" />
+      </div>
+      <div class="field">
+        <label for="productModalDesc">Açıklama <span class="field-hint">(ör. 2 üçlü 2 berjer)</span></label>
+        <textarea id="productModalDesc" rows="2" maxlength="200" placeholder="Ürün açıklaması / varyant bilgisi…"></textarea>
+      </div>
+      <div class="field">
+        <label for="productModalCategory">Tür</label>
+        <div class="category-select-row">
+          <select id="productModalCategory"><option value="">— Tür seçilmedi —</option></select>
+          <button type="button" id="productModalNewCategory" class="mini-btn">+ Yeni Tür</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Stok</label>
+        <div class="stepper large">
+          <button type="button" class="step-btn" data-role="modal-minus">−</button>
+          <input type="number" id="productModalStock" min="0" />
+          <button type="button" class="step-btn" data-role="modal-plus">+</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="productModalSave" class="primary-btn">Kaydet</button>
+        <button type="button" id="productModalDelete" class="danger-btn">Ürünü Sil</button>
+      </div>
+      <div class="modal-msg" id="productModalMsg"></div>
+    </div>
+  </div>
+
+  <!-- ============ YENİ TÜR HIZLI EKLEME MODALI ============ -->
+  <div id="categoryModalBackdrop" class="modal-backdrop" style="display:none;">
+    <div class="modal category-modal">
+      <button class="modal-close" id="categoryModalClose" aria-label="Kapat">✕</button>
+      <div class="brand-inline" style="color:var(--ink);margin-bottom:14px;">Yeni Ürün Türü</div>
+      <div class="cat-add-row">
+        <label class="cat-icon-upload" for="quickCategoryIconInput">
+          <img id="quickCategoryIconPreview" style="display:none;" alt="" />
+          <span id="quickCategoryIconPlaceholder">İkon</span>
+          <input type="file" accept="image/*" id="quickCategoryIconInput" hidden />
+        </label>
+        <input type="text" id="quickCategoryName" placeholder="Tür adı" maxlength="40" />
+      </div>
+      <button type="button" id="quickCategorySave" class="primary-btn" style="margin-top:12px;">Türü Ekle</button>
+      <div class="modal-msg" id="categoryModalMsg"></div>
+    </div>
+  </div>
 
 </div>
 

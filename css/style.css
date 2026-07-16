@@ -524,3 +524,238 @@ main.boards{
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;}
 }
+
+/* =========================================================
+   YENİ ÖZELLİKLER — arama, teşhir ürünler, tür/kategoriler,
+   ürün detay modalı, görsel yükleme
+   ========================================================= */
+
+/* ----- Ürün satırı: isim üstte, açıklama altta (mobil dahil her yerde) ----- */
+.product-row{
+  align-items:center;
+  cursor:pointer;
+}
+.product-row:hover{border-color:var(--accent);}
+.product-thumb{
+  width:40px;height:40px;border-radius:7px;flex-shrink:0;
+  border:1.5px solid var(--line-strong);
+  background:var(--bg-deep);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;font-size:15px;color:var(--ink-soft);
+}
+.product-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.product-info{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;gap:2px;
+}
+.product-name{
+  font-size:13.5px;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.product-desc{
+  font-size:11.5px;color:var(--ink-soft);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.product-cat-pill{
+  align-self:flex-start;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px;font-weight:700;letter-spacing:0.02em;
+  padding:2px 7px;border-radius:20px;
+  margin-top:1px;
+  display:inline-flex;align-items:center;gap:4px;
+}
+.product-cat-pill img{width:11px;height:11px;border-radius:50%;object-fit:cover;}
+.product-side{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+
+/* ----- Ürün ekleme formu (mağaza / teşhir) genişletilmiş ----- */
+.add-row-extra{display:flex;gap:6px;flex-wrap:wrap;}
+.add-row-extra input[type="text"]{
+  flex:1;min-width:120px;
+  padding:9px 10px;border-radius:7px;border:1.5px solid var(--line);
+  font-size:13.5px;font-family:'Inter',sans-serif;background:#fff;
+}
+.add-row-extra select{
+  flex:1;min-width:120px;
+  padding:9px 10px;border-radius:7px;border:1.5px solid var(--line);
+  font-size:13px;font-family:'Inter',sans-serif;background:#fff;color:var(--ink);
+}
+.add-row-extra input:focus,.add-row-extra select:focus{outline:none;border-color:var(--accent);}
+
+/* ----- Tür (kategori) rozet renkleri: isimden türetilen sabit renk ----- */
+.cat-pill-0{background:#FBE0E1;color:#8f1216;}
+.cat-pill-1{background:#DCF2E9;color:#0b5c46;}
+.cat-pill-2{background:#DFE7FC;color:#12308f;}
+.cat-pill-3{background:#F7E7CB;color:#6b4405;}
+.cat-pill-4{background:#E7DFFA;color:#3d1a80;}
+.cat-pill-5{background:#E4E4E4;color:#0A0A0A;}
+
+/* ----- Tüm ürünlerde ara ----- */
+.search-view{padding:22px 24px calc(50px + var(--safe-bottom));max-width:760px;}
+.search-bar-row{margin-bottom:16px;}
+.search-bar-row input{
+  width:100%;padding:13px 14px;border-radius:9px;
+  border:2px solid var(--line-strong);font-size:16px;
+  font-family:'Inter',sans-serif;background:#fff;color:var(--ink);
+}
+.search-bar-row input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,38,44,0.14);}
+.global-search-results{display:flex;flex-direction:column;gap:8px;}
+.search-result-row{
+  display:flex;align-items:center;gap:10px;
+  background:#fff;border:1.5px solid var(--line-strong);
+  border-radius:9px;padding:9px 12px;cursor:pointer;
+}
+.search-result-row:hover{border-color:var(--accent);}
+.search-result-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.search-result-source{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;
+  color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.03em;
+}
+@media (max-width:680px){
+  .search-view{padding:16px 14px calc(40px + var(--safe-bottom));}
+}
+
+/* ----- Ürün Türleri (kategoriler) view ----- */
+.categories-view{padding:22px 24px calc(50px + var(--safe-bottom));max-width:640px;}
+.cat-add-row{
+  display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap;
+}
+.cat-icon-upload{
+  width:44px;height:44px;border-radius:8px;flex-shrink:0;
+  border:1.5px dashed var(--line-strong);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;overflow:hidden;background:var(--bg-deep);
+  font-size:9.5px;color:var(--ink-soft);text-align:center;
+}
+.cat-icon-upload img{width:100%;height:100%;object-fit:cover;}
+.cat-add-row input[type="text"]{
+  flex:1;min-width:140px;
+  padding:11px 12px;border-radius:7px;border:2px solid var(--line-strong);
+  font-size:15px;font-family:'Inter',sans-serif;background:#fff;
+}
+.cat-add-row input:focus{outline:none;border-color:var(--accent);}
+.categories-list{display:flex;flex-direction:column;gap:8px;}
+.category-row{
+  display:flex;align-items:center;gap:10px;
+  background:#fff;border:1.5px solid var(--line-strong);
+  border-radius:9px;padding:9px 12px;
+}
+.category-row-icon{
+  width:36px;height:36px;border-radius:8px;flex-shrink:0;
+  background:var(--bg-deep);border:1.5px solid var(--line);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:13px;
+}
+.category-row-icon img{width:100%;height:100%;object-fit:cover;}
+.category-row-name{flex:1;min-width:0;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+@media (max-width:680px){
+  .categories-view{padding:16px 14px calc(40px + var(--safe-bottom));}
+}
+
+/* ----- Ortak: mini buton ----- */
+.mini-btn{
+  border:1.5px solid var(--line-strong);border-radius:7px;background:#fff;
+  color:var(--ink);font-family:'Inter',sans-serif;font-weight:700;font-size:11.5px;
+  padding:0 10px;height:36px;cursor:pointer;white-space:nowrap;
+}
+.mini-btn:hover{background:var(--ink);color:#fff;}
+
+/* ----- Modal (ürün detay / yeni tür) ----- */
+.modal-backdrop{
+  position:fixed;inset:0;z-index:90;
+  background:rgba(10,10,10,0.55);
+  display:flex;align-items:flex-end;justify-content:center;
+  padding:0;
+}
+@media (min-width:640px){
+  .modal-backdrop{align-items:center;padding:20px;}
+}
+.modal{
+  position:relative;
+  width:100%;max-width:440px;
+  background:#fff;
+  border:2px solid var(--ink);
+  border-radius:16px 16px 0 0;
+  padding:24px 20px calc(22px + var(--safe-bottom));
+  max-height:92vh;overflow-y:auto;
+}
+@media (min-width:640px){
+  .modal{border-radius:14px;max-height:88vh;}
+}
+.modal-close{
+  position:absolute;top:14px;right:14px;
+  width:32px;height:32px;border-radius:8px;
+  border:1.5px solid var(--line-strong);background:#fff;color:var(--ink);
+  font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.modal-close:hover{background:var(--ink);color:#fff;}
+.modal .field{margin-bottom:14px;}
+.modal .field label{
+  display:block;font-size:11px;font-weight:700;color:var(--ink);
+  margin-bottom:6px;letter-spacing:0.02em;text-transform:uppercase;
+}
+.modal .field .field-hint{text-transform:none;font-weight:500;color:var(--ink-soft);font-size:10.5px;letter-spacing:0;}
+.modal .field input[type="text"],
+.modal .field textarea,
+.modal .field select{
+  width:100%;padding:11px 12px;border-radius:8px;
+  border:2px solid var(--line-strong);font-family:'Inter',sans-serif;
+  font-size:15px;color:var(--ink);background:#fff;resize:vertical;
+}
+.modal .field input:focus,.modal .field textarea:focus,.modal .field select:focus{
+  outline:none;border-color:var(--accent);
+}
+.category-select-row{display:flex;gap:6px;}
+.category-select-row select{flex:1;min-width:0;}
+
+.stepper.large{display:flex;align-items:center;gap:8px;}
+.stepper.large .step-btn{width:42px;height:42px;font-size:19px;}
+.stepper.large input{
+  flex:1;min-width:0;text-align:center;
+  padding:10px 8px;border-radius:8px;border:2px solid var(--line-strong);
+  font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700;
+}
+.stepper.large input:focus{outline:none;border-color:var(--accent);}
+
+.modal-actions{display:flex;flex-direction:column;gap:8px;margin-top:18px;}
+.danger-btn{
+  width:100%;padding:12px 0;border-radius:7px;
+  border:2px solid var(--danger);background:#fff;color:var(--danger);
+  font-family:'Inter',sans-serif;font-weight:700;font-size:13.5px;cursor:pointer;
+}
+.danger-btn:hover{background:var(--danger);color:#fff;}
+.modal-msg{margin-top:10px;font-size:12px;text-align:center;min-height:14px;font-weight:600;color:var(--danger);}
+
+/* ----- Ürün görseli (modal içi) ----- */
+.product-modal-image-wrap{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  margin-bottom:18px;padding-bottom:16px;border-bottom:1.5px dashed var(--line);
+}
+.product-modal-img,
+.product-modal-img-placeholder{
+  width:140px;height:140px;border-radius:10px;
+  border:2px solid var(--line-strong);
+  object-fit:cover;background:var(--bg-deep);
+}
+.product-modal-img-placeholder{
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:var(--ink-soft);text-align:center;
+}
+.product-modal-image-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.image-upload-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:9px 14px;border-radius:7px;border:2px solid var(--ink);
+  background:var(--ink);color:#fff;font-family:'Inter',sans-serif;
+  font-weight:700;font-size:12px;cursor:pointer;
+}
+.image-upload-btn:hover{background:var(--accent);border-color:var(--accent);}
+.image-upload-btn.small{
+  padding:0;border:none;background:none;color:inherit;font-weight:600;font-size:9.5px;
+}
+.image-remove-btn{
+  padding:9px 14px;border-radius:7px;border:2px solid var(--line-strong);
+  background:#fff;color:var(--ink-soft);font-family:'Inter',sans-serif;
+  font-weight:700;font-size:12px;cursor:pointer;
+}
+.image-remove-btn:hover{color:var(--danger);border-color:var(--danger);}
+
+/* ----- Ürün silme butonuna satır tıklamasının karışmaması için ----- */
+.del-btn,.stepper{cursor:pointer;}

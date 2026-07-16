@@ -20,6 +20,9 @@ const PALETTE = [
 ];
 function colorFor(index) { return PALETTE[index % PALETTE.length]; }
 
+// Teşhir ürünler bölümü için sabit renk (mağaza paletinden ayrı, kolayca ayırt edilsin diye)
+const SHOWROOM_COLOR = { c: "#9333EA", s: "#F1E4FE" };
+
 const isConfigured = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
 const setupWarning = document.getElementById("setupWarning");
 if (!isConfigured) setupWarning.style.display = "block";
@@ -59,15 +62,69 @@ const newStoreNameInput = document.getElementById("newStoreName");
 const storeSelect = document.getElementById("storeSelect");
 const storeDetailWrap = document.getElementById("storeDetailWrap");
 
+// Yeni görünümler
+const searchView = document.getElementById("searchView");
+const globalSearchInput = document.getElementById("globalSearchInput");
+const globalSearchResults = document.getElementById("globalSearchResults");
+
+const showroomView = document.getElementById("showroomView");
+const showroomWrap = document.getElementById("showroomWrap");
+
+const categoriesView = document.getElementById("categoriesView");
+const newCategoryIconInput = document.getElementById("newCategoryIconInput");
+const newCategoryIconPreview = document.getElementById("newCategoryIconPreview");
+const newCategoryIconPlaceholder = document.getElementById("newCategoryIconPlaceholder");
+const newCategoryName = document.getElementById("newCategoryName");
+const addCategoryBtn = document.getElementById("addCategoryBtn");
+const categoriesList = document.getElementById("categoriesList");
+
+// Ürün detay modalı
+const productModalBackdrop = document.getElementById("productModalBackdrop");
+const productModalClose = document.getElementById("productModalClose");
+const productModalImg = document.getElementById("productModalImg");
+const productModalImgPlaceholder = document.getElementById("productModalImgPlaceholder");
+const productModalImageInput = document.getElementById("productModalImageInput");
+const productModalImageRemove = document.getElementById("productModalImageRemove");
+const productModalName = document.getElementById("productModalName");
+const productModalDesc = document.getElementById("productModalDesc");
+const productModalCategory = document.getElementById("productModalCategory");
+const productModalNewCategory = document.getElementById("productModalNewCategory");
+const productModalStock = document.getElementById("productModalStock");
+const productModalSave = document.getElementById("productModalSave");
+const productModalDelete = document.getElementById("productModalDelete");
+const productModalMsg = document.getElementById("productModalMsg");
+
+// Hızlı tür ekleme modalı
+const categoryModalBackdrop = document.getElementById("categoryModalBackdrop");
+const categoryModalClose = document.getElementById("categoryModalClose");
+const quickCategoryIconInput = document.getElementById("quickCategoryIconInput");
+const quickCategoryIconPreview = document.getElementById("quickCategoryIconPreview");
+const quickCategoryIconPlaceholder = document.getElementById("quickCategoryIconPlaceholder");
+const quickCategoryName = document.getElementById("quickCategoryName");
+const quickCategorySave = document.getElementById("quickCategorySave");
+const categoryModalMsg = document.getElementById("categoryModalMsg");
+
 let mode = "login";
 let currentView = "overview";
 let selectedStoreId = null;
 
 let storesUnsub = null;
+let categoriesUnsub = null;
+let showroomUnsub = null;
 const productUnsubs = {};       // storeId -> unsubscribe fn
 const storesMeta = [];          // [{id, name}]
-const storeProducts = {};       // storeId -> [{id, name, stock}]
-const searchTerms = {};         // storeId -> string
+const storeProducts = {};       // storeId -> [{id, name, description, category, stock, image}]
+const searchTerms = {};         // storeId | "__showroom__" -> string
+let categoriesMeta = [];        // [{id, name, icon}]
+let showroomProducts = [];      // [{id, name, description, category, stock, image}]
+
+let newCategoryIconData = "";
+let quickCategoryIconData = "";
+
+// Ürün detay modalının hangi ürüne baktığını izler
+let modalScope = null;
+let modalProductId = null;
+let modalCurrentProduct = null;
 
 function showToast(text) {
   toastEl.textContent = text;
@@ -147,18 +204,33 @@ menuToggle.addEventListener("click", openSidebar);
 sidebarClose.addEventListener("click", closeSidebar);
 sidebarBackdrop.addEventListener("click", closeSidebar);
 
-// ---------- Görünüm değiştirme (Genel Bakış / Mağazalar) ----------
+// ---------- Görünüm değiştirme ----------
 navItems.forEach(btn => {
   btn.addEventListener("click", () => switchView(btn.dataset.view));
 });
+
+const VIEW_TITLES = {
+  overview: "Genel Bakış",
+  stores: "Mağazalar",
+  search: "Tüm Ürünlerde Ara",
+  showroom: "Teşhir Ürünler",
+  categories: "Ürün Türleri"
+};
 
 function switchView(view) {
   currentView = view;
   navItems.forEach(b => b.classList.toggle("active", b.dataset.view === view));
   overviewView.style.display = view === "overview" ? "grid" : "none";
   storesView.style.display = view === "stores" ? "block" : "none";
-  viewTitle.textContent = view === "overview" ? "Genel Bakış" : "Mağazalar";
+  searchView.style.display = view === "search" ? "block" : "none";
+  showroomView.style.display = view === "showroom" ? "block" : "none";
+  categoriesView.style.display = view === "categories" ? "block" : "none";
+  viewTitle.textContent = VIEW_TITLES[view] || "";
+
   if (view === "stores") renderStoreDetail();
+  if (view === "search") { renderGlobalSearchResults(); setTimeout(() => globalSearchInput.focus({ preventScroll: true }), 50); }
+  if (view === "showroom") renderShowroomView();
+  if (view === "categories") renderCategoriesList();
   closeSidebar();
 }
 
@@ -171,6 +243,8 @@ if (isConfigured) {
       currentUserLabel.textContent = user.email.replace(EMAIL_SUFFIX, "");
       await ensureSeedStores();
       listenStores();
+      listenCategories();
+      listenShowroom();
     } else {
       appScreen.style.display = "none";
       loginScreen.style.display = "flex";
@@ -181,10 +255,15 @@ if (isConfigured) {
 
 function teardownListeners() {
   if (storesUnsub) storesUnsub();
+  if (categoriesUnsub) categoriesUnsub();
+  if (showroomUnsub) showroomUnsub();
   Object.values(productUnsubs).forEach(fn => fn && fn());
   for (const k in productUnsubs) delete productUnsubs[k];
   storesMeta.length = 0;
   for (const k in storeProducts) delete storeProducts[k];
+  categoriesMeta = [];
+  showroomProducts = [];
+  closeProductModal();
 }
 
 // İlk kullanımda (mağaza koleksiyonu boşsa) eski sabit 3 mağazayı tohumla —
@@ -233,6 +312,7 @@ function listenStores() {
     renderOverview();
     populateStoreSelect();
     if (currentView === "stores") renderStoreDetail();
+    if (currentView === "search") renderGlobalSearchResults();
   }, err => showToast("Mağaza listesi alınamadı: " + err.message));
 }
 
@@ -242,6 +322,8 @@ function listenProducts(storeId) {
     storeProducts[storeId] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderOverview();
     if (currentView === "stores" && selectedStoreId === storeId) renderStoreDetail();
+    if (currentView === "search") renderGlobalSearchResults();
+    refreshOpenModalIfNeeded();
   }, err => showToast("Senkronizasyon hatası: " + err.message));
 }
 
@@ -365,26 +447,66 @@ function renderStoreDetail() {
   storeDetailWrap.appendChild(buildStoreCard(s, idx >= 0 ? idx : 0));
 }
 
-// ---------- Ortak: mağaza kartı üretimi ----------
+// ---------- Teşhir Ürünler görünümü ----------
+function renderShowroomView() {
+  showroomWrap.innerHTML = "";
+  showroomWrap.appendChild(buildProductsCard(
+    { type: "showroom" },
+    "Teşhir Ürünler",
+    SHOWROOM_COLOR,
+    { showRename: false, showDelete: false }
+  ));
+}
+
+// ---------- Mağaza kartı (Teşhir Ürünler ile aynı alt yapıyı kullanır) ----------
 function buildStoreCard(store, colorIndex) {
-  const color = colorFor(colorIndex);
+  return buildProductsCard(
+    { type: "store", storeId: store.id },
+    store.name,
+    colorFor(colorIndex),
+    {
+      showRename: true,
+      showDelete: true,
+      onRename: () => renameStore(store.id, store.name),
+      onDelete: () => deleteStore(store.id, store.name)
+    }
+  );
+}
+
+// ---------- Ortak: mağaza / teşhir ürün kartı üretimi ----------
+function scopeKey(scope) {
+  return scope.type === "store" ? scope.storeId : "__showroom__";
+}
+function productsColRef(scope) {
+  return scope.type === "store"
+    ? collection(db, "stores", scope.storeId, "products")
+    : collection(db, "showroomProducts");
+}
+function productDocRef(scope, id) {
+  return scope.type === "store"
+    ? doc(db, "stores", scope.storeId, "products", id)
+    : doc(db, "showroomProducts", id);
+}
+function getProductsArray(scope) {
+  return scope.type === "store" ? (storeProducts[scope.storeId] || []) : showroomProducts;
+}
+
+function buildProductsCard(scope, title, color, opts = {}) {
+  const key = scopeKey(scope);
   const card = document.createElement("div");
   card.className = "store-card";
-  card.dataset.store = store.id;
+  card.dataset.scope = key;
   card.style.setProperty("--card-color", color.c);
   card.innerHTML = `
     <div class="store-head" style="border-top:4px solid ${color.c}">
       <div class="store-head-left">
         <span class="store-dot" style="background:${color.c}"></span>
         <div>
-          <div class="store-title">${escapeHtml(store.name)}</div>
+          <div class="store-title">${escapeHtml(title)}</div>
           <div class="store-meta" data-role="meta">0 ürün · toplam 0 adet</div>
         </div>
       </div>
-      <div class="store-head-actions">
-        <button class="icon-btn" data-role="rename" title="Yeniden adlandır">✎</button>
-        <button class="icon-btn danger" data-role="delete" title="Mağazayı sil">✕</button>
-      </div>
+      <div class="store-head-actions" data-role="head-actions"></div>
     </div>
     <div class="store-body">
       <div class="add-row">
@@ -392,41 +514,66 @@ function buildStoreCard(store, colorIndex) {
         <input type="number" placeholder="Adet" value="1" min="0" data-role="new-stock" />
         <button class="add-btn" data-role="add-btn" title="Ürün ekle">+</button>
       </div>
+      <div class="add-row-extra">
+        <input type="text" placeholder="Açıklama (opsiyonel, ör. 2 üçlü 2 berjer)" data-role="new-desc" />
+        <select data-role="new-category"></select>
+      </div>
       <div class="search-row">
-        <input type="text" placeholder="Bu mağazada ara…" data-role="search" value="${escapeHtml(searchTerms[store.id] || "")}" />
+        <input type="text" placeholder="Bu listede ara…" data-role="search" value="${escapeHtml(searchTerms[key] || "")}" />
       </div>
       <div class="product-list" data-role="list"></div>
     </div>
   `;
 
-  card.querySelector('[data-role="rename"]').addEventListener("click", () => renameStore(store.id, store.name));
-  card.querySelector('[data-role="delete"]').addEventListener("click", () => deleteStore(store.id, store.name));
+  const headActions = card.querySelector('[data-role="head-actions"]');
+  if (opts.showRename) {
+    const b = document.createElement("button");
+    b.className = "icon-btn";
+    b.title = "Yeniden adlandır";
+    b.textContent = "✎";
+    b.addEventListener("click", opts.onRename);
+    headActions.appendChild(b);
+  }
+  if (opts.showDelete) {
+    const b = document.createElement("button");
+    b.className = "icon-btn danger";
+    b.title = "Sil";
+    b.textContent = "✕";
+    b.addEventListener("click", opts.onDelete);
+    headActions.appendChild(b);
+  }
 
   const nameInput = card.querySelector('[data-role="new-name"]');
   const stockInput = card.querySelector('[data-role="new-stock"]');
+  const descInput = card.querySelector('[data-role="new-desc"]');
+  const categorySelect = card.querySelector('[data-role="new-category"]');
   const addBtn = card.querySelector('[data-role="add-btn"]');
   const searchInput = card.querySelector('[data-role="search"]');
 
-  const submitAdd = () => addProduct(store.id, nameInput, stockInput);
+  renderCategoryOptions(categorySelect, "");
+
+  const submitAdd = () => addProduct(scope, nameInput, stockInput, descInput, categorySelect);
   addBtn.addEventListener("click", submitAdd);
   nameInput.addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
   stockInput.addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
+  descInput.addEventListener("keydown", e => { if (e.key === "Enter") submitAdd(); });
 
   searchInput.addEventListener("input", () => {
-    searchTerms[store.id] = searchInput.value.trim().toLowerCase();
-    fillProductList(card, store.id, color);
+    searchTerms[key] = searchInput.value.trim().toLowerCase();
+    fillProductList(card, scope, color);
   });
 
-  fillProductList(card, store.id, color);
+  fillProductList(card, scope, color);
   return card;
 }
 
-function fillProductList(card, storeId, color) {
+function fillProductList(card, scope, color) {
+  const key = scopeKey(scope);
   const listEl = card.querySelector('[data-role="list"]');
   const metaEl = card.querySelector('[data-role="meta"]');
-  const all = storeProducts[storeId] || [];
-  const term = searchTerms[storeId] || "";
-  const items = term ? all.filter(p => p.name.toLowerCase().includes(term)) : all;
+  const all = getProductsArray(scope);
+  const term = searchTerms[key] || "";
+  const items = term ? all.filter(p => matchesTerm(p, term)) : all;
 
   const totalStock = all.reduce((sum, p) => sum + (p.stock || 0), 0);
   metaEl.textContent = `${all.length} ürün · toplam ${totalStock} adet`;
@@ -437,44 +584,98 @@ function fillProductList(card, storeId, color) {
   }
 
   listEl.innerHTML = "";
-  items.forEach(p => {
-    const row = document.createElement("div");
-    row.className = "product-row";
-    row.innerHTML = `
-      <div class="product-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
-      <div class="stepper">
-        <button class="step-btn" data-role="minus">−</button>
-        <span class="tag ${p.stock === 0 ? "zero" : ""}" style="background:${color.s};color:${color.c}">${p.stock}</span>
-        <button class="step-btn" data-role="plus">+</button>
-      </div>
-      <button class="del-btn" data-role="del" title="Ürünü sil">✕</button>
-    `;
-    row.querySelector('[data-role="minus"]').addEventListener("click", () => changeStock(storeId, p.id, Math.max(0, p.stock - 1)));
-    row.querySelector('[data-role="plus"]').addEventListener("click", () => changeStock(storeId, p.id, p.stock + 1));
-    row.querySelector('[data-role="del"]').addEventListener("click", () => removeProduct(storeId, p.id, p.name));
-    listEl.appendChild(row);
-  });
+  items.forEach(p => listEl.appendChild(buildProductRow(p, scope, color)));
 }
 
-async function addProduct(storeId, nameInput, stockInput) {
+function matchesTerm(p, term) {
+  const cat = p.category ? categoriesMeta.find(c => c.id === p.category) : null;
+  const hay = [p.name, p.description || "", cat ? cat.name : ""].join(" ").toLowerCase();
+  return hay.includes(term);
+}
+
+// ---------- Ortak ürün satırı (mağaza / teşhir / arama sonuçlarında kullanılır) ----------
+// Mobilde de her yerde: isim üstte, açıklama altta.
+function buildProductRow(p, scope, color, sourceLabel) {
+  const row = document.createElement("div");
+  row.className = "product-row";
+
+  const cat = p.category ? categoriesMeta.find(c => c.id === p.category) : null;
+  const thumbHtml = p.image
+    ? `<img src="${p.image}" alt="" />`
+    : (cat && cat.icon
+        ? `<img src="${cat.icon}" alt="" />`
+        : `<span>${escapeHtml((p.name || "?").trim().charAt(0).toUpperCase() || "?")}</span>`);
+  const pillHtml = cat
+    ? `<span class="product-cat-pill ${pillClassFor(cat.name)}">${cat.icon ? `<img src="${cat.icon}" alt="" />` : ""}${escapeHtml(cat.name)}</span>`
+    : "";
+
+  row.innerHTML = `
+    <div class="product-thumb">${thumbHtml}</div>
+    <div class="product-info">
+      ${sourceLabel ? `<div class="search-result-source">${escapeHtml(sourceLabel)}</div>` : ""}
+      <div class="product-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+      ${p.description ? `<div class="product-desc" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</div>` : ""}
+      ${pillHtml}
+    </div>
+    <div class="product-side">
+      <div class="stepper">
+        <button type="button" class="step-btn" data-role="minus">−</button>
+        <span class="tag ${(p.stock || 0) === 0 ? "zero" : ""}" style="background:${color.s};color:${color.c}">${p.stock || 0}</span>
+        <button type="button" class="step-btn" data-role="plus">+</button>
+      </div>
+      <button type="button" class="del-btn" data-role="del" title="Ürünü sil">✕</button>
+    </div>
+  `;
+
+  row.querySelector('[data-role="minus"]').addEventListener("click", (e) => {
+    e.stopPropagation();
+    changeStock(scope, p.id, Math.max(0, (p.stock || 0) - 1));
+  });
+  row.querySelector('[data-role="plus"]').addEventListener("click", (e) => {
+    e.stopPropagation();
+    changeStock(scope, p.id, (p.stock || 0) + 1);
+  });
+  row.querySelector('[data-role="del"]').addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeProduct(scope, p.id, p.name);
+  });
+  row.addEventListener("click", () => openProductModal(scope, p));
+
+  return row;
+}
+
+function hashStr(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function pillClassFor(name) {
+  return "cat-pill-" + (hashStr(name || "") % 6);
+}
+
+async function addProduct(scope, nameInput, stockInput, descInput, categorySelect) {
   const name = nameInput.value.trim();
   const stock = Math.max(0, parseInt(stockInput.value || "0", 10));
+  const description = descInput ? descInput.value.trim() : "";
+  const category = categorySelect ? categorySelect.value : "";
   if (!name) { nameInput.focus(); return; }
   try {
-    await addDoc(collection(db, "stores", storeId, "products"), {
-      name, stock, updatedAt: serverTimestamp()
+    await addDoc(productsColRef(scope), {
+      name, description, category, stock, image: "", updatedAt: serverTimestamp()
     });
     nameInput.value = "";
     stockInput.value = "1";
+    if (descInput) descInput.value = "";
+    if (categorySelect) categorySelect.value = "";
     nameInput.focus();
   } catch (err) {
     showToast("Ürün eklenemedi: " + err.message);
   }
 }
 
-async function changeStock(storeId, productId, newStock) {
+async function changeStock(scope, productId, newStock) {
   try {
-    await updateDoc(doc(db, "stores", storeId, "products", productId), {
+    await updateDoc(productDocRef(scope, productId), {
       stock: newStock, updatedAt: serverTimestamp()
     });
   } catch (err) {
@@ -482,14 +683,379 @@ async function changeStock(storeId, productId, newStock) {
   }
 }
 
-async function removeProduct(storeId, productId, name) {
+async function deleteProductDirect(scope, productId) {
+  await deleteDoc(productDocRef(scope, productId));
+}
+
+async function removeProduct(scope, productId, name) {
   if (!confirm(`"${name}" ürünü silinsin mi?`)) return;
   try {
-    await deleteDoc(doc(db, "stores", storeId, "products", productId));
+    await deleteProductDirect(scope, productId);
     showToast("Ürün silindi.");
   } catch (err) {
     showToast("Silinemedi: " + err.message);
   }
+}
+
+// ---------- Tüm Ürünlerde Ara ----------
+globalSearchInput.addEventListener("input", renderGlobalSearchResults);
+
+function renderGlobalSearchResults() {
+  const term = globalSearchInput.value.trim().toLowerCase();
+
+  const results = [];
+  storesMeta.forEach((s, i) => {
+    (storeProducts[s.id] || []).forEach(p => {
+      results.push({ p, scope: { type: "store", storeId: s.id }, color: colorFor(i), sourceLabel: s.name });
+    });
+  });
+  showroomProducts.forEach(p => {
+    results.push({ p, scope: { type: "showroom" }, color: SHOWROOM_COLOR, sourceLabel: "Teşhir Ürünler" });
+  });
+
+  globalSearchResults.innerHTML = "";
+
+  if (!term) {
+    globalSearchResults.innerHTML = `<div class="store-empty-hint">Aramak için yukarıya yazmaya başlayın. Tüm mağazalar ve Teşhir Ürünler taranır.</div>`;
+    return;
+  }
+
+  const filtered = results.filter(r => matchesTerm(r.p, term));
+  if (filtered.length === 0) {
+    globalSearchResults.innerHTML = `<div class="store-empty-hint">Eşleşen ürün bulunamadı.</div>`;
+    return;
+  }
+  filtered.slice(0, 300).forEach(r => {
+    globalSearchResults.appendChild(buildProductRow(r.p, r.scope, r.color, r.sourceLabel));
+  });
+}
+
+// ---------- Ürün Türleri (kategoriler) ----------
+function listenCategories() {
+  const q = query(collection(db, "categories"), orderBy("name"));
+  categoriesUnsub = onSnapshot(q, snap => {
+    categoriesMeta = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderCategoriesList();
+    renderOverview();
+    if (currentView === "stores") renderStoreDetail();
+    if (currentView === "showroom") renderShowroomView();
+    if (currentView === "search") renderGlobalSearchResults();
+    refreshOpenModalIfNeeded();
+  }, err => showToast("Ürün türleri alınamadı: " + err.message));
+}
+
+function renderCategoryOptions(selectEl, selectedId) {
+  const prev = selectedId !== undefined ? selectedId : selectEl.value;
+  selectEl.innerHTML = `<option value="">— Tür seçilmedi —</option>`;
+  categoriesMeta.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = cat.name;
+    selectEl.appendChild(opt);
+  });
+  if (prev && categoriesMeta.some(c => c.id === prev)) selectEl.value = prev;
+}
+
+function renderCategoriesList() {
+  categoriesList.innerHTML = "";
+  if (categoriesMeta.length === 0) {
+    categoriesList.innerHTML = `<div class="store-empty-hint">Henüz tür eklenmedi. Yukarıdan ilk türünüzü ekleyin (ör. Koltuk Takımları, Yatak Odaları).</div>`;
+    return;
+  }
+  categoriesMeta.forEach(cat => {
+    const row = document.createElement("div");
+    row.className = "category-row";
+    row.innerHTML = `
+      <div class="category-row-icon">${cat.icon ? `<img src="${cat.icon}" alt="" />` : "▤"}</div>
+      <div class="category-row-name">${escapeHtml(cat.name)}</div>
+      <button class="icon-btn" data-role="rename" title="Yeniden adlandır">✎</button>
+      <button class="icon-btn danger" data-role="delete" title="Türü sil">✕</button>
+    `;
+    row.querySelector('[data-role="rename"]').addEventListener("click", () => renameCategory(cat));
+    row.querySelector('[data-role="delete"]').addEventListener("click", () => deleteCategory(cat));
+    categoriesList.appendChild(row);
+  });
+}
+
+async function addCategory(name, icon) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) throw new Error("Tür adı boş olamaz.");
+  const ref = await addDoc(collection(db, "categories"), {
+    name: trimmed, icon: icon || "", createdAt: serverTimestamp()
+  });
+  return ref.id;
+}
+
+async function renameCategory(cat) {
+  const name = prompt("Yeni tür adı:", cat.name);
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === cat.name) return;
+  try {
+    await updateDoc(doc(db, "categories", cat.id), { name: trimmed });
+    showToast("Tür adı güncellendi.");
+  } catch (err) {
+    showToast("Güncellenemedi: " + err.message);
+  }
+}
+
+async function deleteCategory(cat) {
+  if (!confirm(`"${cat.name}" türünü silmek istediğinize emin misiniz? Bu türe atanmış ürünler silinmez, sadece etiketleri kaybolur.`)) return;
+  try {
+    await deleteDoc(doc(db, "categories", cat.id));
+    showToast("Tür silindi.");
+  } catch (err) {
+    showToast("Silinemedi: " + err.message);
+  }
+}
+
+function wireIconUpload(inputEl, previewImgEl, placeholderEl, onData) {
+  inputEl.addEventListener("change", async () => {
+    const file = inputEl.files && inputEl.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressImageToDataURL(file, 140, 0.82);
+      previewImgEl.src = dataUrl;
+      previewImgEl.style.display = "block";
+      placeholderEl.style.display = "none";
+      onData(dataUrl);
+    } catch (err) {
+      showToast("İkon yüklenemedi: " + err.message);
+    } finally {
+      inputEl.value = "";
+    }
+  });
+}
+wireIconUpload(newCategoryIconInput, newCategoryIconPreview, newCategoryIconPlaceholder, d => { newCategoryIconData = d; });
+wireIconUpload(quickCategoryIconInput, quickCategoryIconPreview, quickCategoryIconPlaceholder, d => { quickCategoryIconData = d; });
+
+addCategoryBtn.addEventListener("click", async () => {
+  const name = newCategoryName.value.trim();
+  if (!name) { newCategoryName.focus(); return; }
+  try {
+    await addCategory(name, newCategoryIconData);
+    newCategoryName.value = "";
+    newCategoryIconData = "";
+    newCategoryIconPreview.style.display = "none";
+    newCategoryIconPreview.removeAttribute("src");
+    newCategoryIconPlaceholder.style.display = "flex";
+    showToast(`"${name}" türü eklendi.`);
+  } catch (err) {
+    showToast("Tür eklenemedi: " + err.message);
+  }
+});
+newCategoryName.addEventListener("keydown", e => { if (e.key === "Enter") addCategoryBtn.click(); });
+
+// Ürün detay modalından "+ Yeni Tür"
+productModalNewCategory.addEventListener("click", () => {
+  quickCategoryName.value = "";
+  quickCategoryIconData = "";
+  quickCategoryIconPreview.style.display = "none";
+  quickCategoryIconPreview.removeAttribute("src");
+  quickCategoryIconPlaceholder.style.display = "flex";
+  categoryModalMsg.textContent = "";
+  categoryModalBackdrop.style.display = "flex";
+});
+categoryModalClose.addEventListener("click", () => { categoryModalBackdrop.style.display = "none"; });
+categoryModalBackdrop.addEventListener("click", (e) => {
+  if (e.target === categoryModalBackdrop) categoryModalBackdrop.style.display = "none";
+});
+quickCategoryName.addEventListener("keydown", e => { if (e.key === "Enter") quickCategorySave.click(); });
+
+quickCategorySave.addEventListener("click", async () => {
+  const name = quickCategoryName.value.trim();
+  if (!name) { categoryModalMsg.textContent = "Tür adı boş olamaz."; return; }
+  try {
+    const newId = await addCategory(name, quickCategoryIconData);
+    categoryModalBackdrop.style.display = "none";
+    renderCategoryOptions(productModalCategory, newId);
+    showToast(`"${name}" türü eklendi.`);
+  } catch (err) {
+    categoryModalMsg.textContent = "Kaydedilemedi: " + err.message;
+  }
+});
+
+// ---------- Teşhir Ürünler dinleyicisi ----------
+function listenShowroom() {
+  const q = query(collection(db, "showroomProducts"), orderBy("name"));
+  showroomUnsub = onSnapshot(q, snap => {
+    showroomProducts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (currentView === "showroom") renderShowroomView();
+    if (currentView === "search") renderGlobalSearchResults();
+    refreshOpenModalIfNeeded();
+  }, err => showToast("Teşhir ürünleri alınamadı: " + err.message));
+}
+
+// ---------- Ürün detay modalı (stok + görsel + düzenleme buradan yapılır) ----------
+function findProductInScope(scope, id) {
+  return getProductsArray(scope).find(p => p.id === id) || null;
+}
+
+function openProductModal(scope, product) {
+  modalScope = scope;
+  modalProductId = product.id;
+  modalCurrentProduct = product;
+
+  productModalName.value = product.name || "";
+  productModalDesc.value = product.description || "";
+  productModalStock.value = product.stock || 0;
+  renderCategoryOptions(productModalCategory, product.category || "");
+  updateModalImagePreview(product.image || "");
+  productModalMsg.textContent = "";
+  productModalBackdrop.style.display = "flex";
+}
+
+function updateModalImagePreview(image) {
+  if (image) {
+    productModalImg.src = image;
+    productModalImg.style.display = "block";
+    productModalImgPlaceholder.style.display = "none";
+    productModalImageRemove.style.display = "inline-flex";
+  } else {
+    productModalImg.removeAttribute("src");
+    productModalImg.style.display = "none";
+    productModalImgPlaceholder.style.display = "flex";
+    productModalImageRemove.style.display = "none";
+  }
+}
+
+function closeProductModal() {
+  productModalBackdrop.style.display = "none";
+  modalScope = null;
+  modalProductId = null;
+  modalCurrentProduct = null;
+  productModalImageInput.value = "";
+}
+productModalClose.addEventListener("click", closeProductModal);
+productModalBackdrop.addEventListener("click", (e) => {
+  if (e.target === productModalBackdrop) closeProductModal();
+});
+
+function refreshOpenModalIfNeeded() {
+  if (!modalScope || !modalProductId) return;
+  const p = findProductInScope(modalScope, modalProductId);
+  if (!p) { closeProductModal(); return; }
+  modalCurrentProduct = p;
+  if (document.activeElement !== productModalStock) productModalStock.value = p.stock || 0;
+  updateModalImagePreview(p.image || "");
+}
+
+document.querySelector('[data-role="modal-minus"]').addEventListener("click", () => {
+  if (!modalScope || !modalProductId) return;
+  const newStock = Math.max(0, parseInt(productModalStock.value || "0", 10) - 1);
+  productModalStock.value = newStock;
+  changeStock(modalScope, modalProductId, newStock);
+});
+document.querySelector('[data-role="modal-plus"]').addEventListener("click", () => {
+  if (!modalScope || !modalProductId) return;
+  const newStock = Math.max(0, parseInt(productModalStock.value || "0", 10) + 1);
+  productModalStock.value = newStock;
+  changeStock(modalScope, modalProductId, newStock);
+});
+productModalStock.addEventListener("change", () => {
+  if (!modalScope || !modalProductId) return;
+  const newStock = Math.max(0, parseInt(productModalStock.value || "0", 10));
+  productModalStock.value = newStock;
+  changeStock(modalScope, modalProductId, newStock);
+});
+
+productModalSave.addEventListener("click", async () => {
+  if (!modalScope || !modalProductId) return;
+  const name = productModalName.value.trim();
+  if (!name) { productModalMsg.textContent = "Ürün adı boş olamaz."; return; }
+  const description = productModalDesc.value.trim();
+  const category = productModalCategory.value || "";
+  try {
+    await updateDoc(productDocRef(modalScope, modalProductId), {
+      name, description, category, updatedAt: serverTimestamp()
+    });
+    showToast("Ürün güncellendi.");
+    closeProductModal();
+  } catch (err) {
+    productModalMsg.textContent = "Kaydedilemedi: " + err.message;
+  }
+});
+
+productModalDelete.addEventListener("click", async () => {
+  if (!modalScope || !modalProductId || !modalCurrentProduct) return;
+  if (!confirm(`"${modalCurrentProduct.name}" ürünü silinsin mi?`)) return;
+  try {
+    await deleteProductDirect(modalScope, modalProductId);
+    showToast("Ürün silindi.");
+    closeProductModal();
+  } catch (err) {
+    productModalMsg.textContent = "Silinemedi: " + err.message;
+  }
+});
+
+productModalImageInput.addEventListener("change", async () => {
+  const file = productModalImageInput.files && productModalImageInput.files[0];
+  if (!file || !modalScope || !modalProductId) return;
+  try {
+    const dataUrl = await compressImageToDataURL(file, 480, 0.72);
+    await updateDoc(productDocRef(modalScope, modalProductId), {
+      image: dataUrl, updatedAt: serverTimestamp()
+    });
+    updateModalImagePreview(dataUrl);
+    showToast("Görsel güncellendi.");
+  } catch (err) {
+    showToast("Görsel yüklenemedi: " + err.message);
+  } finally {
+    productModalImageInput.value = "";
+  }
+});
+
+productModalImageRemove.addEventListener("click", async () => {
+  if (!modalScope || !modalProductId) return;
+  try {
+    await updateDoc(productDocRef(modalScope, modalProductId), {
+      image: "", updatedAt: serverTimestamp()
+    });
+    updateModalImagePreview("");
+    showToast("Görsel kaldırıldı.");
+  } catch (err) {
+    showToast("Kaldırılamadı: " + err.message);
+  }
+});
+
+// ---------- Görsel sıkıştırma (Firestore'a base64 olarak kaydedilir) ----------
+function compressImageToDataURL(file, maxDim = 480, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    if (!file.type || !file.type.startsWith("image/")) {
+      reject(new Error("Lütfen bir görsel dosyası seçin."));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Dosya okunamadı."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Görsel açılamadı."));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round(height * (maxDim / width));
+            width = maxDim;
+          } else {
+            width = Math.round(width * (maxDim / height));
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        try {
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function escapeHtml(str) {

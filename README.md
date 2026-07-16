@@ -10,10 +10,28 @@ PWA (Progressive Web App).
 - Sol menüden (☰) istediğiniz kadar mağaza ekleyip, yeniden adlandırıp silebilirsiniz
 - **Genel Bakış**: tüm mağazaları aynı anda, yan yana gösteren ızgara görünümü
 - **Mağazalar**: açılır listeden seçtiğiniz tek bir mağazayı büyük görünümde inceleme
-- Ürün ekleme, `+ / −` ile stok güncelleme, ürün silme, mağaza içi arama — hepsi gerçek zamanlı senkron (Firestore `onSnapshot`)
+- **Tüm Ürünlerde Ara**: sol menüden, TÜM mağazalardaki (ve Teşhir Ürünler'deki) ürünleri
+  tek bir arama kutusundan; isim, açıklama ve tür bilgisine göre anlık arayın
+- **Teşhir Ürünler**: mağazalardan bağımsız, ayrı bir "sanal mağaza" gibi çalışan,
+  aynı ürün ekleme/stok/görsel özelliklerine sahip ayrı bir bölüm
+- **Ürün Türleri**: koltuk takımları, yatak odaları gibi türleri elle (isim + ikon
+  görseli yükleyerek) tanımlayın; ürün eklerken/düzenlerken bu türlerden seçin
+- Her ürüne opsiyonel **açıklama** eklenebilir (ör. "2 üçlü 2 berjer") — ürün
+  listelerinde her zaman ürün adı üstte, açıklaması altında gösterilir
+- Bir ürüne tıklayınca açılan **ürün detay penceresinde**: stok +/- ile güncellenir,
+  ürün görseli eklenir/değiştirilir/kaldırılır, ad/açıklama/tür düzenlenir, ürün silinir
+- Ürün ekleme, `+ / −` ile hızlı stok güncelleme, ürün silme, mağaza içi arama — hepsi
+  gerçek zamanlı senkron (Firestore `onSnapshot`)
 - Keskin siyah-beyaz + kırmızı vurgulu, yüksek kontrastlı tasarım
 - Mobil, tablet ve masaüstünde düzgün görünen responsive tasarım (mobilde sol menü kaydırmalı panel olarak açılır)
 - Ana ekrana eklenebilir, çevrimdışı da açılabilen PWA (manifest + service worker)
+
+> **Görseller nasıl saklanıyor?** Firebase Storage kurulumu gerektirmemesi için
+> ürün ve tür görselleri, tarayıcıda otomatik olarak küçültülüp (~480px, JPEG)
+> doğrudan Firestore belgesi içine gömülür. Bu, ek kurulum gerektirmez ama çok
+> yüksek çözünürlüklü/az sıkışan görsellerde belge boyutu sınırına (1 MB)
+> yaklaşabilir — uygulama görseli otomatik küçülttüğü için normal ürün
+> fotoğraflarında sorun yaşamazsınız.
 
 > **Not — veri modeli değişti:** Önceki sürümde mağazalar `Mağaza 1/2/3`
 > olarak sabitti. Artık mağazalar Firestore'daki `stores` koleksiyonunda
@@ -222,10 +240,27 @@ tam ekran açılır ve internet kesilse bile arayüz önbellekten yüklenir
 stores/
   {storeId}: { name: string, createdAt: timestamp }
   {storeId}/products/
-    {productId}: { name: string, stock: number, updatedAt: timestamp }
+    {productId}: {
+      name: string,
+      description: string,      // opsiyonel, ör. "2 üçlü 2 berjer"
+      category: string,         // categories/{id} referansı, boş olabilir
+      stock: number,
+      image: string,            // base64 data-url (küçültülmüş JPEG) veya ""
+      updatedAt: timestamp
+    }
+
+showroomProducts/                // "Teşhir Ürünler" bölümü — mağazalardan bağımsız
+  {productId}: { name, description, category, stock, image, updatedAt }  // yukarıdakiyle aynı yapı
+
+categories/                      // "Ürün Türleri" — elle tanımlanan türler
+  {categoryId}: { name: string, icon: string, createdAt: timestamp }
 ```
 
 Mağaza eklemek/silmek/yeniden adlandırmak artık uygulama içinden
 (sol menüdeki `+` ve ✎ / ✕ ikonlarından) yapılıyor, kodda bir dizi
 düzenlemenize gerek yok. Bir mağaza silindiğinde, içindeki tüm
 ürünler de otomatik olarak silinir.
+
+Mevcut Firestore kuralları (`allow read, write: if request.auth != null`)
+tüm koleksiyonları kapsadığı için `categories` ve `showroomProducts`
+koleksiyonları için ayrıca bir kural eklemenize gerek yoktur.
