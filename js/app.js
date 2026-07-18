@@ -91,6 +91,7 @@ const productModalCategory = document.getElementById("productModalCategory");
 const productModalNewCategory = document.getElementById("productModalNewCategory");
 const productModalStock = document.getElementById("productModalStock");
 const productModalSave = document.getElementById("productModalSave");
+const productModalShowroomBtn = document.getElementById("productModalShowroomBtn");
 const productModalDelete = document.getElementById("productModalDelete");
 const productModalMsg = document.getElementById("productModalMsg");
 
@@ -691,6 +692,7 @@ async function removeProduct(scope, productId, name) {
   if (!confirm(`"${name}" ürünü silinsin mi?`)) return;
   try {
     await deleteProductDirect(scope, productId);
+    if (scope.type === "store") await removeProductFromShowroomBySource(scope.storeId, productId, true);
     showToast("Ürün silindi.");
   } catch (err) {
     showToast("Silinemedi: " + err.message);
@@ -886,6 +888,68 @@ function listenShowroom() {
   }, err => showToast("Teşhir ürünleri alınamadı: " + err.message));
 }
 
+// ---------- Teşhir Ürünlere Ekle/Kaldır (mağazadaki üründen bağımsız bir kopya oluşturur, orijinali silinmez) ----------
+function findShowroomCopyOf(storeId, productId) {
+  return showroomProducts.find(sp => sp.sourceStoreId === storeId && sp.sourceProductId === productId) || null;
+}
+
+async function addProductToShowroom(product, storeId) {
+  if (findShowroomCopyOf(storeId, product.id)) {
+    showToast("Bu ürün zaten Teşhir Ürünler'de.");
+    return;
+  }
+  try {
+    await addDoc(collection(db, "showroomProducts"), {
+      name: product.name || "",
+      description: product.description || "",
+      category: product.category || "",
+      stock: product.stock || 0,
+      image: product.image || "",
+      sourceStoreId: storeId,
+      sourceProductId: product.id,
+      updatedAt: serverTimestamp()
+    });
+    showToast(`"${product.name}" Teşhir Ürünler'e eklendi.`);
+  } catch (err) {
+    showToast("Teşhire eklenemedi: " + err.message);
+  }
+}
+
+async function removeProductFromShowroomBySource(storeId, productId, silent = false) {
+  const copy = findShowroomCopyOf(storeId, productId);
+  if (!copy) return;
+  try {
+    await deleteDoc(doc(db, "showroomProducts", copy.id));
+    if (!silent) showToast("Teşhir Ürünler'den kaldırıldı.");
+  } catch (err) {
+    if (!silent) showToast("Kaldırılamadı: " + err.message);
+  }
+}
+
+function updateShowroomButtonState() {
+  if (!modalScope || modalScope.type !== "store" || !modalProductId) {
+    productModalShowroomBtn.style.display = "none";
+    return;
+  }
+  productModalShowroomBtn.style.display = "block";
+  const already = !!findShowroomCopyOf(modalScope.storeId, modalProductId);
+  productModalShowroomBtn.classList.toggle("added", already);
+  productModalShowroomBtn.textContent = already
+    ? "✓ Teşhirde — Kaldırmak İçin Tıkla"
+    : "◈ Teşhir Ürünlere Ekle";
+}
+
+productModalShowroomBtn.addEventListener("click", async () => {
+  if (!modalScope || modalScope.type !== "store" || !modalCurrentProduct) return;
+  const already = findShowroomCopyOf(modalScope.storeId, modalCurrentProduct.id);
+  if (already) {
+    await removeProductFromShowroomBySource(modalScope.storeId, modalCurrentProduct.id);
+  } else {
+    await addProductToShowroom(modalCurrentProduct, modalScope.storeId);
+  }
+  updateShowroomButtonState();
+});
+
 // ---------- Ürün detay modalı (stok + görsel + düzenleme buradan yapılır) ----------
 function findProductInScope(scope, id) {
   return getProductsArray(scope).find(p => p.id === id) || null;
@@ -901,6 +965,7 @@ function openProductModal(scope, product) {
   productModalStock.value = product.stock || 0;
   renderCategoryOptions(productModalCategory, product.category || "");
   updateModalImagePreview(product.image || "");
+  updateShowroomButtonState();
   productModalMsg.textContent = "";
   productModalBackdrop.style.display = "flex";
 }
@@ -938,6 +1003,7 @@ function refreshOpenModalIfNeeded() {
   modalCurrentProduct = p;
   if (document.activeElement !== productModalStock) productModalStock.value = p.stock || 0;
   updateModalImagePreview(p.image || "");
+  updateShowroomButtonState();
 }
 
 document.querySelector('[data-role="modal-minus"]').addEventListener("click", () => {
@@ -981,6 +1047,7 @@ productModalDelete.addEventListener("click", async () => {
   if (!confirm(`"${modalCurrentProduct.name}" ürünü silinsin mi?`)) return;
   try {
     await deleteProductDirect(modalScope, modalProductId);
+    if (modalScope.type === "store") await removeProductFromShowroomBySource(modalScope.storeId, modalProductId, true);
     showToast("Ürün silindi.");
     closeProductModal();
   } catch (err) {

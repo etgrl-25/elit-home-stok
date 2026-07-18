@@ -722,6 +722,15 @@ main.boards{
   font-family:'Inter',sans-serif;font-weight:700;font-size:13.5px;cursor:pointer;
 }
 .danger-btn:hover{background:var(--danger);color:#fff;}
+
+.showroom-btn{
+  width:100%;padding:12px 0;border-radius:7px;
+  border:2px solid #9333EA;background:#fff;color:#9333EA;
+  font-family:'Inter',sans-serif;font-weight:700;font-size:13.5px;cursor:pointer;
+}
+.showroom-btn:hover{background:#9333EA;color:#fff;}
+.showroom-btn.added{background:#9333EA;color:#fff;}
+.showroom-btn.added:hover{background:#fff;color:#9333EA;}
 .modal-msg{margin-top:10px;font-size:12px;text-align:center;min-height:14px;font-weight:600;color:var(--danger);}
 
 /* ----- Ürün görseli (modal içi) ----- */
