@@ -86,6 +86,9 @@
           <button class="nav-item" data-view="categories" type="button">
             <span class="nav-ico">▤</span> Ürün Türleri
           </button>
+          <button class="nav-item" data-view="ciro" type="button">
+            <span class="nav-ico">↗</span> Ciro
+          </button>
           <button class="nav-item admin-only" id="kasaDefteriNavBtn" data-view="kasadefteri" type="button" style="display:none;">
             <span class="nav-ico">▧</span> Kasa Defteri
           </button>
@@ -154,6 +157,41 @@
             <button id="addCategoryBtn" class="add-btn" title="Tür ekle">+</button>
           </div>
           <div id="categoriesList" class="categories-list"></div>
+        </main>
+
+        <!-- ============ CİRO (TÜM KULLANICILARA AÇIK) ============ -->
+        <main id="ciroView" class="ciro-view" style="display:none;">
+          <div class="store-picker-row">
+            <label for="ciroStoreSelect">Mağaza seç</label>
+            <select id="ciroStoreSelect"></select>
+          </div>
+
+          <form id="ciroAddForm" class="kasa-add-row">
+            <input type="date" id="ciroDate" required />
+            <input type="number" id="ciroAmount" placeholder="Ciro tutarı" min="0" step="0.01" required />
+            <input type="text" id="ciroNote" placeholder="Not / o gün ne yapıldı (opsiyonel)" maxlength="140" />
+            <button type="submit" class="add-btn" title="Ciro ekle">+</button>
+          </form>
+
+          <div class="kasa-summary kasa-summary-single">
+            <div class="kasa-summary-item kasa-summary-balance">
+              <div class="kasa-summary-label">Bu Ayki Ciro — <span id="ciroCurrentMonthLabel"></span></div>
+              <div class="kasa-summary-value" id="ciroCurrentMonthTotal">0 ₺</div>
+            </div>
+          </div>
+
+          <div class="ciro-section-title">Günlük Kayıtlar</div>
+          <div id="ciroDailyList" class="kasa-list"></div>
+
+          <div class="ciro-section-title">Aylık Ciro Geçmişi — Bu Mağaza</div>
+          <div id="ciroMonthlyList" class="ciro-monthly-list"></div>
+
+          <div class="ciro-section-title">Tüm Mağazalar — Aylık Ciro</div>
+          <div class="ciro-all-month-row">
+            <label for="ciroAllMonthSelect">Ay seç</label>
+            <select id="ciroAllMonthSelect"></select>
+          </div>
+          <div id="ciroAllStoresList" class="ciro-monthly-list"></div>
         </main>
 
         <!-- ============ KASA DEFTERİ (SADECE ADMIN) ============ -->

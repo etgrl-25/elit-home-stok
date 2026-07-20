@@ -95,6 +95,20 @@ const productModalShowroomBtn = document.getElementById("productModalShowroomBtn
 const productModalDelete = document.getElementById("productModalDelete");
 const productModalMsg = document.getElementById("productModalMsg");
 
+// Ciro (tüm kullanıcılara açık)
+const ciroView = document.getElementById("ciroView");
+const ciroStoreSelect = document.getElementById("ciroStoreSelect");
+const ciroAddForm = document.getElementById("ciroAddForm");
+const ciroDate = document.getElementById("ciroDate");
+const ciroAmount = document.getElementById("ciroAmount");
+const ciroNote = document.getElementById("ciroNote");
+const ciroCurrentMonthLabel = document.getElementById("ciroCurrentMonthLabel");
+const ciroCurrentMonthTotal = document.getElementById("ciroCurrentMonthTotal");
+const ciroDailyList = document.getElementById("ciroDailyList");
+const ciroMonthlyList = document.getElementById("ciroMonthlyList");
+const ciroAllMonthSelect = document.getElementById("ciroAllMonthSelect");
+const ciroAllStoresList = document.getElementById("ciroAllStoresList");
+
 // Kasa Defteri (sadece admin)
 const kasaDefteriNavBtn = document.getElementById("kasaDefteriNavBtn");
 const kasaDefteriView = document.getElementById("kasaDefteriView");
@@ -126,6 +140,7 @@ let storesUnsub = null;
 let categoriesUnsub = null;
 let showroomUnsub = null;
 let kasaDefteriUnsub = null;
+let ciroUnsub = null;
 const productUnsubs = {};       // storeId -> unsubscribe fn
 const storesMeta = [];          // [{id, name}]
 const storeProducts = {};       // storeId -> [{id, name, description, category, stock, image}]
@@ -134,6 +149,8 @@ let categoriesMeta = [];        // [{id, name, icon}]
 let showroomProducts = [];      // [{id, name, description, category, stock, image}]
 let isAdmin = false;
 let kasaEntries = [];           // [{id, date, description, type, amount}]
+let ciroEntries = [];           // [{id, storeId, date, amount, note}]
+let selectedCiroMonth = null;   // "YYYY-MM"
 
 let newCategoryIconData = "";
 let quickCategoryIconData = "";
@@ -232,6 +249,7 @@ const VIEW_TITLES = {
   search: "Tüm Ürünlerde Ara",
   showroom: "Teşhir Ürünler",
   categories: "Ürün Türleri",
+  ciro: "Ciro",
   kasadefteri: "Kasa Defteri"
 };
 
@@ -244,6 +262,7 @@ function switchView(view) {
   searchView.style.display = view === "search" ? "block" : "none";
   showroomView.style.display = view === "showroom" ? "block" : "none";
   categoriesView.style.display = view === "categories" ? "block" : "none";
+  ciroView.style.display = view === "ciro" ? "block" : "none";
   kasaDefteriView.style.display = view === "kasadefteri" ? "block" : "none";
   viewTitle.textContent = VIEW_TITLES[view] || "";
 
@@ -251,6 +270,7 @@ function switchView(view) {
   if (view === "search") { renderGlobalSearchResults(); setTimeout(() => globalSearchInput.focus({ preventScroll: true }), 50); }
   if (view === "showroom") renderShowroomView();
   if (view === "categories") renderCategoriesList();
+  if (view === "ciro") renderCiroView();
   if (view === "kasadefteri") renderKasaDefteri();
   closeSidebar();
 }
@@ -266,6 +286,7 @@ if (isConfigured) {
       listenStores();
       listenCategories();
       listenShowroom();
+      listenCiro();
       await checkAdminRole(user.uid);
     } else {
       appScreen.style.display = "none";
@@ -280,7 +301,9 @@ function teardownListeners() {
   if (categoriesUnsub) categoriesUnsub();
   if (showroomUnsub) showroomUnsub();
   if (kasaDefteriUnsub) kasaDefteriUnsub();
+  if (ciroUnsub) ciroUnsub();
   kasaDefteriUnsub = null;
+  ciroUnsub = null;
   Object.values(productUnsubs).forEach(fn => fn && fn());
   for (const k in productUnsubs) delete productUnsubs[k];
   storesMeta.length = 0;
@@ -288,6 +311,8 @@ function teardownListeners() {
   categoriesMeta = [];
   showroomProducts = [];
   kasaEntries = [];
+  ciroEntries = [];
+  selectedCiroMonth = null;
   isAdmin = false;
   kasaDefteriNavBtn.style.display = "none";
   closeProductModal();
@@ -300,8 +325,10 @@ async function checkAdminRole(uid) {
   try {
     const snap = await getDoc(doc(db, "users", uid));
     isAdmin = snap.exists() && snap.data().role === "admin";
+    console.log("[Kasa Defteri] UID:", uid, "| users belgesi var mı:", snap.exists(), "| role:", snap.exists() ? snap.data().role : "(belge yok)", "| isAdmin:", isAdmin);
   } catch (err) {
     isAdmin = false; // Firestore kuralları izin vermiyorsa ya da belge yoksa admin değildir
+    console.error("[Kasa Defteri] Admin kontrolü başarısız:", err);
   }
   kasaDefteriNavBtn.style.display = isAdmin ? "flex" : "none";
   if (isAdmin) {
@@ -390,6 +417,191 @@ if (kasaDate) {
   kasaDate.value = today.toISOString().slice(0, 10);
 }
 
+// ---------- Ciro (tüm kullanıcılara açık) ----------
+const MONTH_NAMES = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+function todayYm() {
+  return new Date().toISOString().slice(0, 7); // "YYYY-MM"
+}
+function monthLabel(ym) {
+  const [y, m] = ym.split("-");
+  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+}
+
+function listenCiro() {
+  if (ciroUnsub) return;
+  const q = query(collection(db, "ciro"), orderBy("date", "desc"));
+  ciroUnsub = onSnapshot(q, snap => {
+    ciroEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (currentView === "ciro") renderCiroView();
+  }, err => showToast("Ciro kayıtları alınamadı: " + err.message));
+}
+
+function populateCiroStoreSelect() {
+  const prev = ciroStoreSelect.value;
+  ciroStoreSelect.innerHTML = "";
+  storesMeta.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = s.name;
+    ciroStoreSelect.appendChild(opt);
+  });
+  if (prev && storesMeta.some(s => s.id === prev)) ciroStoreSelect.value = prev;
+}
+ciroStoreSelect.addEventListener("change", renderCiroView);
+
+if (ciroDate) {
+  ciroDate.value = new Date().toISOString().slice(0, 10);
+}
+
+ciroAddForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const storeId = ciroStoreSelect.value;
+  if (!storeId) { showToast("Önce bir mağaza seçin."); return; }
+  const date = ciroDate.value;
+  const amount = parseFloat(ciroAmount.value);
+  const note = ciroNote.value.trim();
+  if (!date || !amount || amount <= 0) return;
+  try {
+    await addDoc(collection(db, "ciro"), {
+      storeId, date, amount, note,
+      createdBy: currentUserLabel.textContent || "",
+      createdAt: serverTimestamp()
+    });
+    ciroAmount.value = "";
+    ciroNote.value = "";
+    showToast("Ciro eklendi.");
+  } catch (err) {
+    showToast("Ciro eklenemedi: " + err.message);
+  }
+});
+
+async function deleteCiroEntry(id, label) {
+  if (!confirm(`"${label}" kaydı silinsin mi?`)) return;
+  try {
+    await deleteDoc(doc(db, "ciro", id));
+    showToast("Kayıt silindi.");
+  } catch (err) {
+    showToast("Silinemedi: " + err.message);
+  }
+}
+
+function renderCiroView() {
+  if (storesMeta.length === 0) {
+    ciroDailyList.innerHTML = `<div class="store-empty-hint">Önce sol menüden bir mağaza ekleyin.</div>`;
+    ciroMonthlyList.innerHTML = "";
+    ciroAllStoresList.innerHTML = "";
+    ciroCurrentMonthTotal.textContent = formatCurrency(0);
+    ciroCurrentMonthLabel.textContent = monthLabel(todayYm());
+    return;
+  }
+  if (!ciroStoreSelect.value) populateCiroStoreSelect();
+  const storeId = ciroStoreSelect.value;
+
+  // Bu mağazanın kayıtları (gün gün)
+  const storeEntries = ciroEntries.filter(c => c.storeId === storeId);
+  ciroDailyList.innerHTML = "";
+  if (storeEntries.length === 0) {
+    ciroDailyList.innerHTML = `<div class="empty-state">Bu mağaza için henüz ciro kaydı yok.</div>`;
+  } else {
+    storeEntries.forEach(c => {
+      const row = document.createElement("div");
+      row.className = "kasa-row";
+      row.innerHTML = `
+        <div class="kasa-row-info">
+          <div class="kasa-row-desc">${escapeHtml(c.note || "—")}</div>
+          <div class="kasa-row-date">${escapeHtml(c.date || "")}${c.createdBy ? " · " + escapeHtml(c.createdBy) : ""}</div>
+        </div>
+        <div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>
+        <button type="button" class="del-btn" title="Kaydı sil">✕</button>
+      `;
+      row.querySelector(".del-btn").addEventListener("click", () => deleteCiroEntry(c.id, c.date || ""));
+      ciroDailyList.appendChild(row);
+    });
+  }
+
+  // Bu ayki toplam (seçili mağaza)
+  const ym = todayYm();
+  ciroCurrentMonthLabel.textContent = monthLabel(ym);
+  const monthTotal = storeEntries.filter(c => (c.date || "").startsWith(ym)).reduce((s, c) => s + (c.amount || 0), 0);
+  ciroCurrentMonthTotal.textContent = formatCurrency(monthTotal);
+
+  // Bu mağazanın aylara göre geçmişi
+  const byMonth = {};
+  storeEntries.forEach(c => {
+    const key = (c.date || "").slice(0, 7);
+    if (!key) return;
+    byMonth[key] = (byMonth[key] || 0) + (c.amount || 0);
+  });
+  const months = Object.keys(byMonth).sort().reverse();
+  ciroMonthlyList.innerHTML = "";
+  if (months.length === 0) {
+    ciroMonthlyList.innerHTML = `<div class="empty-state">Henüz aylık veri yok.</div>`;
+  } else {
+    months.forEach(m => {
+      const row = document.createElement("div");
+      row.className = "ciro-monthly-row" + (m === ym ? " current" : "");
+      row.innerHTML = `
+        <span class="ciro-monthly-row-label">${monthLabel(m)}</span>
+        <span class="ciro-monthly-row-total">${formatCurrency(byMonth[m])}</span>
+      `;
+      ciroMonthlyList.appendChild(row);
+    });
+  }
+
+  renderCiroAllStoresSection();
+}
+
+function renderCiroAllStoresSection() {
+  // Tüm mağazalarda görülen tüm aylar + bu ay her zaman listede
+  const allMonthsSet = new Set([todayYm()]);
+  ciroEntries.forEach(c => { if (c.date) allMonthsSet.add(c.date.slice(0, 7)); });
+  const allMonths = Array.from(allMonthsSet).sort().reverse();
+
+  const prevSelected = selectedCiroMonth && allMonths.includes(selectedCiroMonth) ? selectedCiroMonth : allMonths[0];
+  selectedCiroMonth = prevSelected;
+
+  ciroAllMonthSelect.innerHTML = "";
+  allMonths.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = monthLabel(m);
+    ciroAllMonthSelect.appendChild(opt);
+  });
+  ciroAllMonthSelect.value = selectedCiroMonth;
+
+  renderCiroAllStoresList();
+}
+ciroAllMonthSelect.addEventListener("change", () => {
+  selectedCiroMonth = ciroAllMonthSelect.value;
+  renderCiroAllStoresList();
+});
+
+function renderCiroAllStoresList() {
+  const ym = selectedCiroMonth || todayYm();
+  ciroAllStoresList.innerHTML = "";
+  let grandTotal = 0;
+  storesMeta.forEach(s => {
+    const total = ciroEntries
+      .filter(c => c.storeId === s.id && (c.date || "").startsWith(ym))
+      .reduce((sum, c) => sum + (c.amount || 0), 0);
+    grandTotal += total;
+    const row = document.createElement("div");
+    row.className = "ciro-monthly-row";
+    row.innerHTML = `
+      <span class="ciro-monthly-row-label">${escapeHtml(s.name)}</span>
+      <span class="ciro-monthly-row-total">${formatCurrency(total)}</span>
+    `;
+    ciroAllStoresList.appendChild(row);
+  });
+  const totalRow = document.createElement("div");
+  totalRow.className = "ciro-monthly-row grand-total";
+  totalRow.innerHTML = `
+    <span class="ciro-monthly-row-label">Genel Toplam</span>
+    <span class="ciro-monthly-row-total">${formatCurrency(grandTotal)}</span>
+  `;
+  ciroAllStoresList.appendChild(totalRow);
+}
+
 // İlk kullanımda (mağaza koleksiyonu boşsa) eski sabit 3 mağazayı tohumla —
 // böylece önceki sürümde eklenmiş ürünler kaybolmaz.
 async function ensureSeedStores() {
@@ -435,8 +647,10 @@ function listenStores() {
     renderSidebarStoreList();
     renderOverview();
     populateStoreSelect();
+    populateCiroStoreSelect();
     if (currentView === "stores") renderStoreDetail();
     if (currentView === "search") renderGlobalSearchResults();
+    if (currentView === "ciro") renderCiroView();
   }, err => showToast("Mağaza listesi alınamadı: " + err.message));
 }
 

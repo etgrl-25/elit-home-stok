@@ -790,3 +790,31 @@ main.boards{
   .kasa-view{padding:16px 14px calc(40px + var(--safe-bottom));}
   .kasa-summary{grid-template-columns:1fr;}
 }
+
+/* ----- Ciro (tüm kullanıcılara açık) ----- */
+.ciro-view{padding:22px 24px calc(50px + var(--safe-bottom));max-width:760px;}
+.kasa-summary-single{grid-template-columns:1fr;margin-bottom:0;}
+.ciro-section-title{
+  font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;
+  color:var(--ink-soft);margin:22px 0 10px;
+}
+.ciro-all-month-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.ciro-all-month-row label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);}
+.ciro-all-month-row select{
+  padding:9px 12px;border-radius:var(--radius);border:1px solid var(--line-strong);
+  font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:600;background:#fff;color:var(--ink);
+  min-width:180px;
+}
+.ciro-monthly-list{display:flex;flex-direction:column;gap:6px;}
+.ciro-monthly-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:#fff;border:1px solid var(--line-strong);border-radius:var(--radius);
+  padding:10px 12px;
+}
+.ciro-monthly-row-label{font-size:13.5px;font-weight:600;}
+.ciro-monthly-row-total{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;}
+.ciro-monthly-row.current{border-color:var(--ink);}
+.ciro-monthly-row.grand-total{background:var(--bg-deep);}
+@media (max-width:680px){
+  .ciro-view{padding:16px 14px calc(40px + var(--safe-bottom));}
+}

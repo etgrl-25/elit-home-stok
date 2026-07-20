@@ -1,4 +1,4 @@
-const CACHE_NAME = "elit-home-stok-v3";
+const CACHE_NAME = "elit-home-stok-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
