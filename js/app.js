@@ -5,23 +5,23 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
-  onSnapshot, serverTimestamp, query, orderBy, getDocs, writeBatch
+  onSnapshot, serverTimestamp, query, orderBy, getDocs, writeBatch, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
 const EMAIL_SUFFIX = "@elithome.local";
 const PALETTE = [
-  { c: "#E8262C", s: "#FBE0E1" }, // kırmızı
-  { c: "#0F8B6C", s: "#DCF2E9" }, // yeşil
-  { c: "#1D4ED8", s: "#DFE7FC" }, // mavi
-  { c: "#B5760B", s: "#F7E7CB" }, // hardal
-  { c: "#6D28D9", s: "#E7DFFA" }, // mor
-  { c: "#0A0A0A", s: "#E4E4E4" }  // siyah
+  { c: "#D42B2B" }, // kırmızı
+  { c: "#1E7A5C" }, // yeşil
+  { c: "#2456C2" }, // mavi
+  { c: "#946200" }, // hardal
+  { c: "#5B3AAE" }, // mor
+  { c: "#111111" }  // siyah
 ];
 function colorFor(index) { return PALETTE[index % PALETTE.length]; }
 
 // Teşhir ürünler bölümü için sabit renk (mağaza paletinden ayrı, kolayca ayırt edilsin diye)
-const SHOWROOM_COLOR = { c: "#9333EA", s: "#F1E4FE" };
+const SHOWROOM_COLOR = { c: "#5B3AAE" };
 
 const isConfigured = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
 const setupWarning = document.getElementById("setupWarning");
@@ -95,6 +95,19 @@ const productModalShowroomBtn = document.getElementById("productModalShowroomBtn
 const productModalDelete = document.getElementById("productModalDelete");
 const productModalMsg = document.getElementById("productModalMsg");
 
+// Kasa Defteri (sadece admin)
+const kasaDefteriNavBtn = document.getElementById("kasaDefteriNavBtn");
+const kasaDefteriView = document.getElementById("kasaDefteriView");
+const kasaAddForm = document.getElementById("kasaAddForm");
+const kasaDate = document.getElementById("kasaDate");
+const kasaDesc = document.getElementById("kasaDesc");
+const kasaType = document.getElementById("kasaType");
+const kasaAmount = document.getElementById("kasaAmount");
+const kasaList = document.getElementById("kasaList");
+const kasaTotalIncome = document.getElementById("kasaTotalIncome");
+const kasaTotalExpense = document.getElementById("kasaTotalExpense");
+const kasaBalance = document.getElementById("kasaBalance");
+
 // Hızlı tür ekleme modalı
 const categoryModalBackdrop = document.getElementById("categoryModalBackdrop");
 const categoryModalClose = document.getElementById("categoryModalClose");
@@ -112,12 +125,15 @@ let selectedStoreId = null;
 let storesUnsub = null;
 let categoriesUnsub = null;
 let showroomUnsub = null;
+let kasaDefteriUnsub = null;
 const productUnsubs = {};       // storeId -> unsubscribe fn
 const storesMeta = [];          // [{id, name}]
 const storeProducts = {};       // storeId -> [{id, name, description, category, stock, image}]
 const searchTerms = {};         // storeId | "__showroom__" -> string
 let categoriesMeta = [];        // [{id, name, icon}]
 let showroomProducts = [];      // [{id, name, description, category, stock, image}]
+let isAdmin = false;
+let kasaEntries = [];           // [{id, date, description, type, amount}]
 
 let newCategoryIconData = "";
 let quickCategoryIconData = "";
@@ -215,10 +231,12 @@ const VIEW_TITLES = {
   stores: "Mağazalar",
   search: "Tüm Ürünlerde Ara",
   showroom: "Teşhir Ürünler",
-  categories: "Ürün Türleri"
+  categories: "Ürün Türleri",
+  kasadefteri: "Kasa Defteri"
 };
 
 function switchView(view) {
+  if (view === "kasadefteri" && !isAdmin) return; // yetkisiz erişim engeli
   currentView = view;
   navItems.forEach(b => b.classList.toggle("active", b.dataset.view === view));
   overviewView.style.display = view === "overview" ? "grid" : "none";
@@ -226,12 +244,14 @@ function switchView(view) {
   searchView.style.display = view === "search" ? "block" : "none";
   showroomView.style.display = view === "showroom" ? "block" : "none";
   categoriesView.style.display = view === "categories" ? "block" : "none";
+  kasaDefteriView.style.display = view === "kasadefteri" ? "block" : "none";
   viewTitle.textContent = VIEW_TITLES[view] || "";
 
   if (view === "stores") renderStoreDetail();
   if (view === "search") { renderGlobalSearchResults(); setTimeout(() => globalSearchInput.focus({ preventScroll: true }), 50); }
   if (view === "showroom") renderShowroomView();
   if (view === "categories") renderCategoriesList();
+  if (view === "kasadefteri") renderKasaDefteri();
   closeSidebar();
 }
 
@@ -246,6 +266,7 @@ if (isConfigured) {
       listenStores();
       listenCategories();
       listenShowroom();
+      await checkAdminRole(user.uid);
     } else {
       appScreen.style.display = "none";
       loginScreen.style.display = "flex";
@@ -258,13 +279,115 @@ function teardownListeners() {
   if (storesUnsub) storesUnsub();
   if (categoriesUnsub) categoriesUnsub();
   if (showroomUnsub) showroomUnsub();
+  if (kasaDefteriUnsub) kasaDefteriUnsub();
+  kasaDefteriUnsub = null;
   Object.values(productUnsubs).forEach(fn => fn && fn());
   for (const k in productUnsubs) delete productUnsubs[k];
   storesMeta.length = 0;
   for (const k in storeProducts) delete storeProducts[k];
   categoriesMeta = [];
   showroomProducts = [];
+  kasaEntries = [];
+  isAdmin = false;
+  kasaDefteriNavBtn.style.display = "none";
   closeProductModal();
+}
+
+// ---------- Admin rolü kontrolü ----------
+// Firestore'da "users" koleksiyonunda, kullanıcının UID'si belge ID'si olan
+// bir belgede role: "admin" alanı varsa bu kullanıcı admindir.
+async function checkAdminRole(uid) {
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    isAdmin = snap.exists() && snap.data().role === "admin";
+  } catch (err) {
+    isAdmin = false; // Firestore kuralları izin vermiyorsa ya da belge yoksa admin değildir
+  }
+  kasaDefteriNavBtn.style.display = isAdmin ? "flex" : "none";
+  if (isAdmin) {
+    listenKasaDefteri();
+  } else if (currentView === "kasadefteri") {
+    switchView("overview");
+  }
+}
+
+// ---------- Kasa Defteri (sadece admin) ----------
+function listenKasaDefteri() {
+  if (kasaDefteriUnsub) return;
+  const q = query(collection(db, "kasaDefteri"), orderBy("date", "desc"));
+  kasaDefteriUnsub = onSnapshot(q, snap => {
+    kasaEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (currentView === "kasadefteri") renderKasaDefteri();
+  }, err => showToast("Kasa defteri alınamadı: " + err.message));
+}
+
+function renderKasaDefteri() {
+  const totalIncome = kasaEntries.filter(e => e.type === "gelir").reduce((s, e) => s + (e.amount || 0), 0);
+  const totalExpense = kasaEntries.filter(e => e.type === "gider").reduce((s, e) => s + (e.amount || 0), 0);
+  kasaTotalIncome.textContent = formatCurrency(totalIncome);
+  kasaTotalExpense.textContent = formatCurrency(totalExpense);
+  kasaBalance.textContent = formatCurrency(totalIncome - totalExpense);
+
+  kasaList.innerHTML = "";
+  if (kasaEntries.length === 0) {
+    kasaList.innerHTML = `<div class="empty-state">Henüz kayıt eklenmedi.</div>`;
+    return;
+  }
+  kasaEntries.forEach(e => {
+    const row = document.createElement("div");
+    row.className = "kasa-row";
+    const sign = e.type === "gelir" ? "+" : "−";
+    row.innerHTML = `
+      <div class="kasa-row-info">
+        <div class="kasa-row-desc">${escapeHtml(e.description || "")}</div>
+        <div class="kasa-row-date">${escapeHtml(e.date || "")}</div>
+      </div>
+      <div class="kasa-row-amount ${e.type === "gelir" ? "income" : "expense"}">${sign}${formatCurrency(e.amount || 0)}</div>
+      <button type="button" class="del-btn" title="Kaydı sil">✕</button>
+    `;
+    row.querySelector(".del-btn").addEventListener("click", () => deleteKasaEntry(e.id, e.description));
+    kasaList.appendChild(row);
+  });
+}
+
+function formatCurrency(n) {
+  return (n || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
+}
+
+kasaAddForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const date = kasaDate.value;
+  const description = kasaDesc.value.trim();
+  const type = kasaType.value;
+  const amount = parseFloat(kasaAmount.value);
+  if (!date || !description || !amount || amount <= 0) return;
+  try {
+    await addDoc(collection(db, "kasaDefteri"), {
+      date, description, type, amount, createdAt: serverTimestamp()
+    });
+    kasaDesc.value = "";
+    kasaAmount.value = "";
+    kasaDesc.focus();
+    showToast("Kayıt eklendi.");
+  } catch (err) {
+    showToast("Kayıt eklenemedi: " + err.message);
+  }
+});
+
+async function deleteKasaEntry(id, description) {
+  if (!confirm(`"${description}" kaydı silinsin mi?`)) return;
+  try {
+    await deleteDoc(doc(db, "kasaDefteri", id));
+    showToast("Kayıt silindi.");
+  } catch (err) {
+    showToast("Silinemedi: " + err.message);
+  }
+}
+
+// Kasa defteri tarih alanına bugünün tarihini varsayılan yap
+if (kasaDate) {
+  const today = new Date();
+  kasaDate.value = today.toISOString().slice(0, 10);
 }
 
 // İlk kullanımda (mağaza koleksiyonu boşsa) eski sabit 3 mağazayı tohumla —
@@ -607,7 +730,7 @@ function buildProductRow(p, scope, color, sourceLabel) {
         ? `<img src="${cat.icon}" alt="" />`
         : `<span>${escapeHtml((p.name || "?").trim().charAt(0).toUpperCase() || "?")}</span>`);
   const pillHtml = cat
-    ? `<span class="product-cat-pill ${pillClassFor(cat.name)}">${cat.icon ? `<img src="${cat.icon}" alt="" />` : ""}${escapeHtml(cat.name)}</span>`
+    ? `<span class="product-cat-pill">${cat.icon ? `<img src="${cat.icon}" alt="" />` : ""}${escapeHtml(cat.name)}</span>`
     : "";
 
   row.innerHTML = `
@@ -621,7 +744,7 @@ function buildProductRow(p, scope, color, sourceLabel) {
     <div class="product-side">
       <div class="stepper">
         <button type="button" class="step-btn" data-role="minus">−</button>
-        <span class="tag ${(p.stock || 0) === 0 ? "zero" : ""}" style="background:${color.s};color:${color.c}">${p.stock || 0}</span>
+        <span class="tag ${(p.stock || 0) === 0 ? "zero" : ""}" style="background:var(--bg-deep);color:var(--ink)">${p.stock || 0}</span>
         <button type="button" class="step-btn" data-role="plus">+</button>
       </div>
       <button type="button" class="del-btn" data-role="del" title="Ürünü sil">✕</button>
@@ -643,15 +766,6 @@ function buildProductRow(p, scope, color, sourceLabel) {
   row.addEventListener("click", () => openProductModal(scope, p));
 
   return row;
-}
-
-function hashStr(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-function pillClassFor(name) {
-  return "cat-pill-" + (hashStr(name || "") % 6);
 }
 
 async function addProduct(scope, nameInput, stockInput, descInput, categorySelect) {
