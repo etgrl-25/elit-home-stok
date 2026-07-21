@@ -92,6 +92,9 @@
           <button class="nav-item admin-only" id="kasaDefteriNavBtn" data-view="kasadefteri" type="button" style="display:none;">
             <span class="nav-ico">▧</span> Kasa Defteri
           </button>
+          <button class="nav-item admin-only" id="adminSettingsNavBtn" data-view="adminSettings" type="button" style="display:none;">
+            <span class="nav-ico">⚙</span> Admin Ayarları
+          </button>
         </nav>
 
         <div class="sidebar-stores">
@@ -161,7 +164,7 @@
 
         <!-- ============ CİRO (TÜM KULLANICILARA AÇIK) ============ -->
         <main id="ciroView" class="ciro-view" style="display:none;">
-          <div class="store-picker-row">
+          <div class="store-picker-row" id="ciroStorePickerRow">
             <label for="ciroStoreSelect">Mağaza seç</label>
             <select id="ciroStoreSelect"></select>
           </div>
@@ -186,12 +189,14 @@
           <div class="ciro-section-title">Aylık Ciro Geçmişi — Bu Mağaza</div>
           <div id="ciroMonthlyList" class="ciro-monthly-list"></div>
 
-          <div class="ciro-section-title">Tüm Mağazalar — Aylık Ciro</div>
-          <div class="ciro-all-month-row">
-            <label for="ciroAllMonthSelect">Ay seç</label>
-            <select id="ciroAllMonthSelect"></select>
+          <div id="ciroAllStoresSection">
+            <div class="ciro-section-title">Tüm Mağazalar — Aylık Ciro</div>
+            <div class="ciro-all-month-row">
+              <label for="ciroAllMonthSelect">Ay seç</label>
+              <select id="ciroAllMonthSelect"></select>
+            </div>
+            <div id="ciroAllStoresList" class="ciro-monthly-list"></div>
           </div>
-          <div id="ciroAllStoresList" class="ciro-monthly-list"></div>
         </main>
 
         <!-- ============ KASA DEFTERİ (SADECE ADMIN) ============ -->
@@ -223,6 +228,20 @@
           </form>
 
           <div id="kasaList" class="kasa-list"></div>
+        </main>
+
+        <!-- ============ ADMIN AYARLARI (SADECE ADMIN) ============ -->
+        <main id="adminSettingsView" class="ciro-view" style="display:none;">
+          <div class="ciro-section-title-row">
+            <div class="ciro-section-title">Ciro — Mağaza Atamaları</div>
+            <button type="button" id="addCiroAssignmentBtn" class="mini-btn">+ Ekle</button>
+          </div>
+          <p class="admin-settings-hint">
+            Bir kullanıcıya mağaza atadığınızda, o kullanıcı Ciro sayfasında yalnızca
+            atanan mağazanın cirosunu görebilir ve o mağaza için ekleme/silme yapabilir.
+            Admin her zaman tüm mağazaların cirosunu görebilir.
+          </p>
+          <div id="ciroAssignmentsList" class="kasa-list"></div>
         </main>
       </div>
     </div>
@@ -291,6 +310,30 @@
       </div>
       <button type="button" id="quickCategorySave" class="primary-btn" style="margin-top:12px;">Türü Ekle</button>
       <div class="modal-msg" id="categoryModalMsg"></div>
+    </div>
+  </div>
+
+  <!-- ============ CİRO ATAMA MODALI (SADECE ADMIN) ============ -->
+  <div id="assignmentModalBackdrop" class="modal-backdrop" style="display:none;">
+    <div class="modal category-modal">
+      <button class="modal-close" id="assignmentModalClose" aria-label="Kapat">✕</button>
+      <div class="brand-inline" style="color:var(--ink);margin-bottom:14px;">Ciro Ataması</div>
+
+      <div class="field">
+        <label for="assignmentUserSelect">Kullanıcı Seç</label>
+        <select id="assignmentUserSelect">
+          <option value="">— Kullanıcı seçin —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="assignmentStoreSelect">Mağaza Seç</label>
+        <select id="assignmentStoreSelect">
+          <option value="">— Mağaza seçin —</option>
+        </select>
+      </div>
+
+      <button type="button" id="assignmentSaveBtn" class="primary-btn" style="margin-top:4px;">Kaydet</button>
+      <div class="modal-msg" id="assignmentModalMsg"></div>
     </div>
   </div>
 

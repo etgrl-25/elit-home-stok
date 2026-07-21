@@ -5,7 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
-  onSnapshot, serverTimestamp, query, orderBy, getDocs, writeBatch, getDoc
+  onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
@@ -122,6 +122,21 @@ const kasaTotalIncome = document.getElementById("kasaTotalIncome");
 const kasaTotalExpense = document.getElementById("kasaTotalExpense");
 const kasaBalance = document.getElementById("kasaBalance");
 
+// Admin Ayarları (sadece admin) — ciro mağaza atamaları
+const adminSettingsNavBtn = document.getElementById("adminSettingsNavBtn");
+const adminSettingsView = document.getElementById("adminSettingsView");
+const addCiroAssignmentBtn = document.getElementById("addCiroAssignmentBtn");
+const ciroAssignmentsList = document.getElementById("ciroAssignmentsList");
+const ciroStorePickerRow = document.getElementById("ciroStorePickerRow");
+const ciroAllStoresSection = document.getElementById("ciroAllStoresSection");
+
+const assignmentModalBackdrop = document.getElementById("assignmentModalBackdrop");
+const assignmentModalClose = document.getElementById("assignmentModalClose");
+const assignmentUserSelect = document.getElementById("assignmentUserSelect");
+const assignmentStoreSelect = document.getElementById("assignmentStoreSelect");
+const assignmentSaveBtn = document.getElementById("assignmentSaveBtn");
+const assignmentModalMsg = document.getElementById("assignmentModalMsg");
+
 // Hızlı tür ekleme modalı
 const categoryModalBackdrop = document.getElementById("categoryModalBackdrop");
 const categoryModalClose = document.getElementById("categoryModalClose");
@@ -151,6 +166,14 @@ let isAdmin = false;
 let kasaEntries = [];           // [{id, date, description, type, amount}]
 let ciroEntries = [];           // [{id, storeId, date, amount, note}]
 let selectedCiroMonth = null;   // "YYYY-MM"
+
+// Admin Ayarları / kullanıcı-mağaza atamaları
+let currentUid = null;
+let myAssignedStoreId = "";     // giriş yapan kullanıcıya atanmış mağaza id'si (admin değilse)
+let myUserDocUnsub = null;
+let usersUnsub = null;
+let usersMeta = [];             // [{id, username, role, assignedStoreId}]
+let editingAssignmentUid = null;
 
 let newCategoryIconData = "";
 let quickCategoryIconData = "";
@@ -250,11 +273,13 @@ const VIEW_TITLES = {
   showroom: "Teşhir Ürünler",
   categories: "Ürün Türleri",
   ciro: "Ciro",
-  kasadefteri: "Kasa Defteri"
+  kasadefteri: "Kasa Defteri",
+  adminSettings: "Admin Ayarları"
 };
 
 function switchView(view) {
   if (view === "kasadefteri" && !isAdmin) return; // yetkisiz erişim engeli
+  if (view === "adminSettings" && !isAdmin) return; // yetkisiz erişim engeli
   currentView = view;
   navItems.forEach(b => b.classList.toggle("active", b.dataset.view === view));
   overviewView.style.display = view === "overview" ? "grid" : "none";
@@ -264,6 +289,7 @@ function switchView(view) {
   categoriesView.style.display = view === "categories" ? "block" : "none";
   ciroView.style.display = view === "ciro" ? "block" : "none";
   kasaDefteriView.style.display = view === "kasadefteri" ? "block" : "none";
+  adminSettingsView.style.display = view === "adminSettings" ? "block" : "none";
   viewTitle.textContent = VIEW_TITLES[view] || "";
 
   if (view === "stores") renderStoreDetail();
@@ -272,6 +298,7 @@ function switchView(view) {
   if (view === "categories") renderCategoriesList();
   if (view === "ciro") renderCiroView();
   if (view === "kasadefteri") renderKasaDefteri();
+  if (view === "adminSettings") renderAdminSettings();
   closeSidebar();
 }
 
@@ -279,16 +306,18 @@ function switchView(view) {
 if (isConfigured) {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
+      currentUid = user.uid;
       loginScreen.style.display = "none";
       appScreen.style.display = "block";
       currentUserLabel.textContent = user.email.replace(EMAIL_SUFFIX, "");
+      await ensureUserDoc(user);
       await ensureSeedStores();
       listenStores();
       listenCategories();
       listenShowroom();
-      listenCiro();
-      await checkAdminRole(user.uid);
+      listenMyUserDoc(user.uid); // isAdmin / myAssignedStoreId + ciro dinleyicisini canlı olarak yönetir
     } else {
+      currentUid = null;
       appScreen.style.display = "none";
       loginScreen.style.display = "flex";
       teardownListeners();
@@ -302,8 +331,12 @@ function teardownListeners() {
   if (showroomUnsub) showroomUnsub();
   if (kasaDefteriUnsub) kasaDefteriUnsub();
   if (ciroUnsub) ciroUnsub();
+  if (myUserDocUnsub) myUserDocUnsub();
+  if (usersUnsub) usersUnsub();
   kasaDefteriUnsub = null;
   ciroUnsub = null;
+  myUserDocUnsub = null;
+  usersUnsub = null;
   Object.values(productUnsubs).forEach(fn => fn && fn());
   for (const k in productUnsubs) delete productUnsubs[k];
   storesMeta.length = 0;
@@ -314,28 +347,68 @@ function teardownListeners() {
   ciroEntries = [];
   selectedCiroMonth = null;
   isAdmin = false;
+  myAssignedStoreId = "";
+  usersMeta = [];
+  editingAssignmentUid = null;
   kasaDefteriNavBtn.style.display = "none";
+  adminSettingsNavBtn.style.display = "none";
   closeProductModal();
+  closeAssignmentModal();
 }
 
-// ---------- Admin rolü kontrolü ----------
-// Firestore'da "users" koleksiyonunda, kullanıcının UID'si belge ID'si olan
-// bir belgede role: "admin" alanı varsa bu kullanıcı admindir.
-async function checkAdminRole(uid) {
+// ---------- Kullanıcı belgesi (users/{uid}) oluşturma ----------
+// Yeni hesap oluşturulduğunda ya da belgesi olmayan bir kullanıcı giriş yaptığında
+// Firestore'da "users/{uid}" belgesi yoksa, varsayılan role:"user" ile oluşturulur.
+// Admin rolü YALNIZCA Firebase Console'dan elle "admin" yapılarak verilir.
+async function ensureUserDoc(user) {
   try {
-    const snap = await getDoc(doc(db, "users", uid));
-    isAdmin = snap.exists() && snap.data().role === "admin";
-    console.log("[Kasa Defteri] UID:", uid, "| users belgesi var mı:", snap.exists(), "| role:", snap.exists() ? snap.data().role : "(belge yok)", "| isAdmin:", isAdmin);
+    const uref = doc(db, "users", user.uid);
+    const snap = await getDoc(uref);
+    if (!snap.exists()) {
+      const username = user.email.replace(EMAIL_SUFFIX, "");
+      await setDoc(uref, {
+        username, role: "user", assignedStoreId: "", createdAt: serverTimestamp()
+      });
+    }
   } catch (err) {
-    isAdmin = false; // Firestore kuralları izin vermiyorsa ya da belge yoksa admin değildir
-    console.error("[Kasa Defteri] Admin kontrolü başarısız:", err);
+    console.error("[Kullanıcı belgesi] oluşturulamadı:", err);
   }
-  kasaDefteriNavBtn.style.display = isAdmin ? "flex" : "none";
-  if (isAdmin) {
-    listenKasaDefteri();
-  } else if (currentView === "kasadefteri") {
-    switchView("overview");
-  }
+}
+
+// ---------- Admin rolü + mağaza ataması (canlı dinleme) ----------
+// Firestore'da "users" koleksiyonunda, kullanıcının UID'si belge ID'si olan
+// bir belgede role: "admin" alanı varsa bu kullanıcı admindir. "assignedStoreId"
+// alanı ise personelin sadece hangi mağazanın cirosunu görüp yönetebileceğini belirtir.
+function listenMyUserDoc(uid) {
+  if (myUserDocUnsub) myUserDocUnsub();
+  myUserDocUnsub = onSnapshot(doc(db, "users", uid), (snap) => {
+    if (snap.exists()) {
+      const data = snap.data();
+      isAdmin = data.role === "admin";
+      myAssignedStoreId = data.assignedStoreId || "";
+    } else {
+      isAdmin = false;
+      myAssignedStoreId = "";
+    }
+
+    kasaDefteriNavBtn.style.display = isAdmin ? "flex" : "none";
+    adminSettingsNavBtn.style.display = isAdmin ? "flex" : "none";
+
+    if (isAdmin) {
+      listenKasaDefteri();
+      listenUsers();
+    } else {
+      if (currentView === "kasadefteri" || currentView === "adminSettings") switchView("overview");
+    }
+
+    restartCiroListener();
+    if (currentView === "ciro") renderCiroView();
+    if (currentView === "adminSettings") renderAdminSettings();
+  }, err => {
+    isAdmin = false;
+    myAssignedStoreId = "";
+    console.error("[Kullanıcı rolü] dinleme başarısız:", err);
+  });
 }
 
 // ---------- Kasa Defteri (sadece admin) ----------
@@ -427,25 +500,43 @@ function monthLabel(ym) {
   return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
 }
 
-function listenCiro() {
-  if (ciroUnsub) return;
-  const q = query(collection(db, "ciro"), orderBy("date", "desc"));
-  ciroUnsub = onSnapshot(q, snap => {
-    ciroEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+// Rol / atama değiştiğinde (admin olma, mağaza ataması vb.) önceki dinleyiciyi
+// kapatıp isAdmin / myAssignedStoreId durumuna göre doğru sorguyla yeniden başlatır.
+// Admin: tüm ciro kayıtlarını görür. Personel: sadece atanmış mağazasının kayıtlarını görür.
+// Atanmamış personel: hiçbir kayıt görmez.
+function restartCiroListener() {
+  if (ciroUnsub) { ciroUnsub(); ciroUnsub = null; }
+
+  if (isAdmin) {
+    const q = query(collection(db, "ciro"), orderBy("date", "desc"));
+    ciroUnsub = onSnapshot(q, snap => {
+      ciroEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (currentView === "ciro") renderCiroView();
+    }, err => showToast("Ciro kayıtları alınamadı: " + err.message));
+  } else if (myAssignedStoreId) {
+    const q = query(collection(db, "ciro"), where("storeId", "==", myAssignedStoreId), orderBy("date", "desc"));
+    ciroUnsub = onSnapshot(q, snap => {
+      ciroEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (currentView === "ciro") renderCiroView();
+    }, err => showToast("Ciro kayıtları alınamadı: " + err.message));
+  } else {
+    ciroEntries = [];
     if (currentView === "ciro") renderCiroView();
-  }, err => showToast("Ciro kayıtları alınamadı: " + err.message));
+  }
 }
 
 function populateCiroStoreSelect() {
   const prev = ciroStoreSelect.value;
   ciroStoreSelect.innerHTML = "";
-  storesMeta.forEach(s => {
+  const allowedStores = isAdmin ? storesMeta : storesMeta.filter(s => s.id === myAssignedStoreId);
+  allowedStores.forEach(s => {
     const opt = document.createElement("option");
     opt.value = s.id;
     opt.textContent = s.name;
     ciroStoreSelect.appendChild(opt);
   });
-  if (prev && storesMeta.some(s => s.id === prev)) ciroStoreSelect.value = prev;
+  if (prev && allowedStores.some(s => s.id === prev)) ciroStoreSelect.value = prev;
+  ciroStoreSelect.disabled = !isAdmin; // personel için mağaza seçimi kilitli (kendi mağazası)
 }
 ciroStoreSelect.addEventListener("change", renderCiroView);
 
@@ -455,8 +546,13 @@ if (ciroDate) {
 
 ciroAddForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const storeId = ciroStoreSelect.value;
-  if (!storeId) { showToast("Önce bir mağaza seçin."); return; }
+  // Personel yalnızca kendine atanmış mağazaya ciro ekleyebilir; select kilitli olsa da
+  // storeId burada tekrar zorlanır (ekstra güvenlik).
+  let storeId = isAdmin ? ciroStoreSelect.value : myAssignedStoreId;
+  if (!storeId) {
+    showToast(isAdmin ? "Önce bir mağaza seçin." : "Size henüz bir mağaza atanmadı.");
+    return;
+  }
   const date = ciroDate.value;
   const amount = parseFloat(ciroAmount.value);
   const note = ciroNote.value.trim();
@@ -475,7 +571,12 @@ ciroAddForm.addEventListener("submit", async (e) => {
   }
 });
 
-async function deleteCiroEntry(id, label) {
+async function deleteCiroEntry(id, label, storeId) {
+  // Personel yalnızca kendi mağazasının kaydını silebilir.
+  if (!isAdmin && storeId !== myAssignedStoreId) {
+    showToast("Bu kaydı silme yetkiniz yok.");
+    return;
+  }
   if (!confirm(`"${label}" kaydı silinsin mi?`)) return;
   try {
     await deleteDoc(doc(db, "ciro", id));
@@ -486,7 +587,13 @@ async function deleteCiroEntry(id, label) {
 }
 
 function renderCiroView() {
+  // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
+  // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
+  ciroAllStoresSection.style.display = isAdmin ? "block" : "none";
+
   if (storesMeta.length === 0) {
+    ciroStorePickerRow.style.display = "none";
+    ciroAddForm.style.display = "none";
     ciroDailyList.innerHTML = `<div class="store-empty-hint">Önce sol menüden bir mağaza ekleyin.</div>`;
     ciroMonthlyList.innerHTML = "";
     ciroAllStoresList.innerHTML = "";
@@ -494,6 +601,21 @@ function renderCiroView() {
     ciroCurrentMonthLabel.textContent = monthLabel(todayYm());
     return;
   }
+
+  if (!isAdmin && !myAssignedStoreId) {
+    ciroStorePickerRow.style.display = "none";
+    ciroAddForm.style.display = "none";
+    ciroDailyList.innerHTML = `<div class="store-empty-hint">Size henüz bir mağaza atanmadı. Yöneticinizle iletişime geçin.</div>`;
+    ciroMonthlyList.innerHTML = "";
+    ciroAllStoresList.innerHTML = "";
+    ciroCurrentMonthTotal.textContent = formatCurrency(0);
+    ciroCurrentMonthLabel.textContent = monthLabel(todayYm());
+    return;
+  }
+
+  ciroStorePickerRow.style.display = "flex";
+  ciroAddForm.style.display = "flex";
+
   if (!ciroStoreSelect.value) populateCiroStoreSelect();
   const storeId = ciroStoreSelect.value;
 
@@ -514,7 +636,7 @@ function renderCiroView() {
         <div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>
         <button type="button" class="del-btn" title="Kaydı sil">✕</button>
       `;
-      row.querySelector(".del-btn").addEventListener("click", () => deleteCiroEntry(c.id, c.date || ""));
+      row.querySelector(".del-btn").addEventListener("click", () => deleteCiroEntry(c.id, c.date || "", c.storeId));
       ciroDailyList.appendChild(row);
     });
   }
@@ -548,7 +670,7 @@ function renderCiroView() {
     });
   }
 
-  renderCiroAllStoresSection();
+  if (isAdmin) renderCiroAllStoresSection();
 }
 
 function renderCiroAllStoresSection() {
@@ -602,6 +724,114 @@ function renderCiroAllStoresList() {
   ciroAllStoresList.appendChild(totalRow);
 }
 
+// ---------- Admin Ayarları: kullanıcı listesi (sadece admin) ----------
+function listenUsers() {
+  if (usersUnsub) return;
+  usersUnsub = onSnapshot(collection(db, "users"), snap => {
+    usersMeta = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.username || a.id).localeCompare(b.username || b.id, "tr"));
+    if (currentView === "adminSettings") renderAdminSettings();
+  }, err => showToast("Kullanıcı listesi alınamadı: " + err.message));
+}
+
+// ---------- Admin Ayarları: ciro mağaza atamaları listesi ----------
+function renderAdminSettings() {
+  ciroAssignmentsList.innerHTML = "";
+  const assigned = usersMeta.filter(u => u.assignedStoreId);
+  if (assigned.length === 0) {
+    ciroAssignmentsList.innerHTML = `<div class="empty-state">Henüz hiçbir kullanıcıya mağaza atanmadı.</div>`;
+    return;
+  }
+  assigned.forEach(u => {
+    const store = storesMeta.find(s => s.id === u.assignedStoreId);
+    const row = document.createElement("div");
+    row.className = "kasa-row";
+    row.innerHTML = `
+      <div class="kasa-row-info">
+        <div class="kasa-row-desc">${escapeHtml(u.username || u.id)}</div>
+        <div class="kasa-row-date">${escapeHtml(store ? store.name : "Mağaza silinmiş")}</div>
+      </div>
+      <button type="button" class="mini-btn" data-role="edit">Değiştir</button>
+      <button type="button" class="del-btn" title="Atamayı kaldır">✕</button>
+    `;
+    row.querySelector('[data-role="edit"]').addEventListener("click", () => openAssignmentModal(u.id));
+    row.querySelector(".del-btn").addEventListener("click", () => removeAssignment(u.id, u.username || u.id));
+    ciroAssignmentsList.appendChild(row);
+  });
+}
+
+async function removeAssignment(uid, label) {
+  if (!confirm(`"${label}" kullanıcısının mağaza ataması kaldırılsın mı?`)) return;
+  try {
+    await updateDoc(doc(db, "users", uid), { assignedStoreId: "" });
+    showToast("Atama kaldırıldı.");
+  } catch (err) {
+    showToast("Kaldırılamadı: " + err.message);
+  }
+}
+
+// ---------- Admin Ayarları: kullanıcı-mağaza atama modalı ----------
+function openAssignmentModal(uid) {
+  editingAssignmentUid = uid || null;
+  assignmentModalMsg.textContent = "";
+
+  assignmentUserSelect.innerHTML = `<option value="">— Kullanıcı seçin —</option>`;
+  usersMeta.forEach(u => {
+    const opt = document.createElement("option");
+    opt.value = u.id;
+    opt.textContent = u.username || u.id;
+    assignmentUserSelect.appendChild(opt);
+  });
+
+  assignmentStoreSelect.innerHTML = `<option value="">— Mağaza seçin —</option>`;
+  storesMeta.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = s.name;
+    assignmentStoreSelect.appendChild(opt);
+  });
+
+  if (editingAssignmentUid) {
+    const u = usersMeta.find(x => x.id === editingAssignmentUid);
+    assignmentUserSelect.value = editingAssignmentUid;
+    assignmentUserSelect.disabled = true;
+    assignmentStoreSelect.value = u ? (u.assignedStoreId || "") : "";
+  } else {
+    assignmentUserSelect.disabled = false;
+    assignmentUserSelect.value = "";
+    assignmentStoreSelect.value = "";
+  }
+
+  assignmentModalBackdrop.style.display = "flex";
+}
+
+function closeAssignmentModal() {
+  assignmentModalBackdrop.style.display = "none";
+  editingAssignmentUid = null;
+  assignmentUserSelect.disabled = false;
+}
+
+addCiroAssignmentBtn.addEventListener("click", () => openAssignmentModal(null));
+assignmentModalClose.addEventListener("click", closeAssignmentModal);
+assignmentModalBackdrop.addEventListener("click", (e) => {
+  if (e.target === assignmentModalBackdrop) closeAssignmentModal();
+});
+
+assignmentSaveBtn.addEventListener("click", async () => {
+  const uid = editingAssignmentUid || assignmentUserSelect.value;
+  const storeId = assignmentStoreSelect.value;
+  if (!uid) { assignmentModalMsg.textContent = "Lütfen bir kullanıcı seçin."; return; }
+  if (!storeId) { assignmentModalMsg.textContent = "Lütfen bir mağaza seçin."; return; }
+  try {
+    await updateDoc(doc(db, "users", uid), { assignedStoreId: storeId });
+    showToast("Ciro ataması kaydedildi.");
+    closeAssignmentModal();
+  } catch (err) {
+    assignmentModalMsg.textContent = "Kaydedilemedi: " + err.message;
+  }
+});
+
 // İlk kullanımda (mağaza koleksiyonu boşsa) eski sabit 3 mağazayı tohumla —
 // böylece önceki sürümde eklenmiş ürünler kaybolmaz.
 async function ensureSeedStores() {
@@ -651,6 +881,7 @@ function listenStores() {
     if (currentView === "stores") renderStoreDetail();
     if (currentView === "search") renderGlobalSearchResults();
     if (currentView === "ciro") renderCiroView();
+    if (currentView === "adminSettings") renderAdminSettings();
   }, err => showToast("Mağaza listesi alınamadı: " + err.message));
 }
 

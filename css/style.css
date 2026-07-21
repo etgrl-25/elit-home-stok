@@ -818,3 +818,18 @@ main.boards{
 @media (max-width:680px){
   .ciro-view{padding:16px 14px calc(40px + var(--safe-bottom));}
 }
+
+/* ----- Admin Ayarları ----- */
+.ciro-section-title-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:22px 0 10px;flex-wrap:wrap;
+}
+.ciro-section-title-row .ciro-section-title{margin:0;}
+.admin-settings-hint{
+  font-size:12.5px;color:var(--ink-soft);line-height:1.5;
+  margin:0 0 16px;padding:12px 14px;border:1.5px dashed var(--line-strong);border-radius:9px;
+}
+.store-picker-row select:disabled{
+  opacity:0.7;cursor:not-allowed;background:var(--bg-deep);
+}
+.kasa-row .mini-btn{margin-right:4px;height:30px;padding:0 10px;font-size:10.5px;}
