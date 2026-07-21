@@ -109,9 +109,11 @@ const ciroMonthlyList = document.getElementById("ciroMonthlyList");
 const ciroAllMonthSelect = document.getElementById("ciroAllMonthSelect");
 const ciroAllStoresList = document.getElementById("ciroAllStoresList");
 
-// Kasa Defteri (sadece admin)
+// Kasa Defteri (artık tüm kullanıcılara açık, mağaza bazlı)
 const kasaDefteriNavBtn = document.getElementById("kasaDefteriNavBtn");
 const kasaDefteriView = document.getElementById("kasaDefteriView");
+const kasaStorePickerRow = document.getElementById("kasaStorePickerRow");
+const kasaStoreSelect = document.getElementById("kasaStoreSelect");
 const kasaAddForm = document.getElementById("kasaAddForm");
 const kasaDate = document.getElementById("kasaDate");
 const kasaDesc = document.getElementById("kasaDesc");
@@ -121,6 +123,8 @@ const kasaList = document.getElementById("kasaList");
 const kasaTotalIncome = document.getElementById("kasaTotalIncome");
 const kasaTotalExpense = document.getElementById("kasaTotalExpense");
 const kasaBalance = document.getElementById("kasaBalance");
+const kasaAllStoresSection = document.getElementById("kasaAllStoresSection");
+const kasaAllStoresList = document.getElementById("kasaAllStoresList");
 
 // Admin Ayarları (sadece admin) — ciro mağaza atamaları
 const adminSettingsNavBtn = document.getElementById("adminSettingsNavBtn");
@@ -278,7 +282,6 @@ const VIEW_TITLES = {
 };
 
 function switchView(view) {
-  if (view === "kasadefteri" && !isAdmin) return; // yetkisiz erişim engeli
   if (view === "adminSettings" && !isAdmin) return; // yetkisiz erişim engeli
   currentView = view;
   navItems.forEach(b => b.classList.toggle("active", b.dataset.view === view));
@@ -350,7 +353,6 @@ function teardownListeners() {
   myAssignedStoreId = "";
   usersMeta = [];
   editingAssignmentUid = null;
-  kasaDefteriNavBtn.style.display = "none";
   adminSettingsNavBtn.style.display = "none";
   closeProductModal();
   closeAssignmentModal();
@@ -391,18 +393,18 @@ function listenMyUserDoc(uid) {
       myAssignedStoreId = "";
     }
 
-    kasaDefteriNavBtn.style.display = isAdmin ? "flex" : "none";
     adminSettingsNavBtn.style.display = isAdmin ? "flex" : "none";
 
     if (isAdmin) {
-      listenKasaDefteri();
       listenUsers();
-    } else {
-      if (currentView === "kasadefteri" || currentView === "adminSettings") switchView("overview");
+    } else if (currentView === "adminSettings") {
+      switchView("overview");
     }
 
     restartCiroListener();
+    restartKasaListener();
     if (currentView === "ciro") renderCiroView();
+    if (currentView === "kasadefteri") renderKasaDefteri();
     if (currentView === "adminSettings") renderAdminSettings();
   }, err => {
     isAdmin = false;
@@ -411,43 +413,133 @@ function listenMyUserDoc(uid) {
   });
 }
 
-// ---------- Kasa Defteri (sadece admin) ----------
-function listenKasaDefteri() {
-  if (kasaDefteriUnsub) return;
-  const q = query(collection(db, "kasaDefteri"), orderBy("date", "desc"));
-  kasaDefteriUnsub = onSnapshot(q, snap => {
-    kasaEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+// ---------- Kasa Defteri (tüm kullanıcılara açık, mağaza bazlı) ----------
+// Rol / atama değiştiğinde önceki dinleyiciyi kapatıp isAdmin / myAssignedStoreId
+// durumuna göre doğru sorguyla yeniden başlatır. Admin: tüm mağazaların kayıtlarını
+// görür. Personel: sadece atanmış mağazasının kayıtlarını görür.
+function restartKasaListener() {
+  if (kasaDefteriUnsub) { kasaDefteriUnsub(); kasaDefteriUnsub = null; }
+
+  if (isAdmin) {
+    const q = query(collection(db, "kasaDefteri"), orderBy("date", "desc"));
+    kasaDefteriUnsub = onSnapshot(q, snap => {
+      kasaEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (currentView === "kasadefteri") renderKasaDefteri();
+    }, err => showToast("Kasa defteri alınamadı: " + err.message));
+  } else if (myAssignedStoreId) {
+    const q = query(collection(db, "kasaDefteri"), where("storeId", "==", myAssignedStoreId), orderBy("date", "desc"));
+    kasaDefteriUnsub = onSnapshot(q, snap => {
+      kasaEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (currentView === "kasadefteri") renderKasaDefteri();
+    }, err => showToast("Kasa defteri alınamadı: " + err.message));
+  } else {
+    kasaEntries = [];
     if (currentView === "kasadefteri") renderKasaDefteri();
-  }, err => showToast("Kasa defteri alınamadı: " + err.message));
+  }
 }
 
+function populateKasaStoreSelect() {
+  const prev = kasaStoreSelect.value;
+  kasaStoreSelect.innerHTML = "";
+  const allowedStores = isAdmin ? storesMeta : storesMeta.filter(s => s.id === myAssignedStoreId);
+  allowedStores.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = s.name;
+    kasaStoreSelect.appendChild(opt);
+  });
+  if (prev && allowedStores.some(s => s.id === prev)) kasaStoreSelect.value = prev;
+  kasaStoreSelect.disabled = !isAdmin; // personel için mağaza seçimi kilitli (kendi mağazası)
+}
+kasaStoreSelect.addEventListener("change", renderKasaDefteri);
+
 function renderKasaDefteri() {
-  const totalIncome = kasaEntries.filter(e => e.type === "gelir").reduce((s, e) => s + (e.amount || 0), 0);
-  const totalExpense = kasaEntries.filter(e => e.type === "gider").reduce((s, e) => s + (e.amount || 0), 0);
+  // "Tüm Mağazalar — Bakiye" bölümü sadece admin'e görünür.
+  kasaAllStoresSection.style.display = isAdmin ? "block" : "none";
+
+  if (storesMeta.length === 0) {
+    kasaStorePickerRow.style.display = "none";
+    kasaAddForm.style.display = "none";
+    kasaList.innerHTML = `<div class="store-empty-hint">Önce sol menüden bir mağaza ekleyin.</div>`;
+    kasaTotalIncome.textContent = formatCurrency(0);
+    kasaTotalExpense.textContent = formatCurrency(0);
+    kasaBalance.textContent = formatCurrency(0);
+    kasaAllStoresList.innerHTML = "";
+    return;
+  }
+
+  if (!isAdmin && !myAssignedStoreId) {
+    kasaStorePickerRow.style.display = "none";
+    kasaAddForm.style.display = "none";
+    kasaList.innerHTML = `<div class="store-empty-hint">Size henüz bir mağaza atanmadı. Yöneticinizle iletişime geçin.</div>`;
+    kasaTotalIncome.textContent = formatCurrency(0);
+    kasaTotalExpense.textContent = formatCurrency(0);
+    kasaBalance.textContent = formatCurrency(0);
+    kasaAllStoresList.innerHTML = "";
+    return;
+  }
+
+  kasaStorePickerRow.style.display = "flex";
+  kasaAddForm.style.display = "flex";
+
+  if (!kasaStoreSelect.value) populateKasaStoreSelect();
+  const storeId = kasaStoreSelect.value;
+
+  const storeEntries = kasaEntries.filter(e => e.storeId === storeId);
+  const totalIncome = storeEntries.filter(e => e.type === "gelir").reduce((s, e) => s + (e.amount || 0), 0);
+  const totalExpense = storeEntries.filter(e => e.type === "gider").reduce((s, e) => s + (e.amount || 0), 0);
   kasaTotalIncome.textContent = formatCurrency(totalIncome);
   kasaTotalExpense.textContent = formatCurrency(totalExpense);
   kasaBalance.textContent = formatCurrency(totalIncome - totalExpense);
 
   kasaList.innerHTML = "";
-  if (kasaEntries.length === 0) {
-    kasaList.innerHTML = `<div class="empty-state">Henüz kayıt eklenmedi.</div>`;
-    return;
+  if (storeEntries.length === 0) {
+    kasaList.innerHTML = `<div class="empty-state">Bu mağaza için henüz kayıt eklenmedi.</div>`;
+  } else {
+    storeEntries.forEach(e => {
+      const row = document.createElement("div");
+      row.className = "kasa-row";
+      const sign = e.type === "gelir" ? "+" : "−";
+      row.innerHTML = `
+        <div class="kasa-row-info">
+          <div class="kasa-row-desc">${escapeHtml(e.description || "")}</div>
+          <div class="kasa-row-date">${escapeHtml(e.date || "")}${e.createdBy ? " · " + escapeHtml(e.createdBy) : ""}</div>
+        </div>
+        <div class="kasa-row-amount ${e.type === "gelir" ? "income" : "expense"}">${sign}${formatCurrency(e.amount || 0)}</div>
+        <button type="button" class="del-btn" title="Kaydı sil">✕</button>
+      `;
+      row.querySelector(".del-btn").addEventListener("click", () => deleteKasaEntry(e.id, e.description, e.storeId));
+      kasaList.appendChild(row);
+    });
   }
-  kasaEntries.forEach(e => {
+
+  if (isAdmin) renderKasaAllStoresSection();
+}
+
+function renderKasaAllStoresSection() {
+  kasaAllStoresList.innerHTML = "";
+  let grandBalance = 0;
+  storesMeta.forEach(s => {
+    const entries = kasaEntries.filter(e => e.storeId === s.id);
+    const income = entries.filter(e => e.type === "gelir").reduce((sum, e) => sum + (e.amount || 0), 0);
+    const expense = entries.filter(e => e.type === "gider").reduce((sum, e) => sum + (e.amount || 0), 0);
+    const balance = income - expense;
+    grandBalance += balance;
     const row = document.createElement("div");
-    row.className = "kasa-row";
-    const sign = e.type === "gelir" ? "+" : "−";
+    row.className = "ciro-monthly-row";
     row.innerHTML = `
-      <div class="kasa-row-info">
-        <div class="kasa-row-desc">${escapeHtml(e.description || "")}</div>
-        <div class="kasa-row-date">${escapeHtml(e.date || "")}</div>
-      </div>
-      <div class="kasa-row-amount ${e.type === "gelir" ? "income" : "expense"}">${sign}${formatCurrency(e.amount || 0)}</div>
-      <button type="button" class="del-btn" title="Kaydı sil">✕</button>
+      <span class="ciro-monthly-row-label">${escapeHtml(s.name)}</span>
+      <span class="ciro-monthly-row-total">${formatCurrency(balance)}</span>
     `;
-    row.querySelector(".del-btn").addEventListener("click", () => deleteKasaEntry(e.id, e.description));
-    kasaList.appendChild(row);
+    kasaAllStoresList.appendChild(row);
   });
+  const totalRow = document.createElement("div");
+  totalRow.className = "ciro-monthly-row grand-total";
+  totalRow.innerHTML = `
+    <span class="ciro-monthly-row-label">Genel Toplam</span>
+    <span class="ciro-monthly-row-total">${formatCurrency(grandBalance)}</span>
+  `;
+  kasaAllStoresList.appendChild(totalRow);
 }
 
 function formatCurrency(n) {
@@ -456,6 +548,13 @@ function formatCurrency(n) {
 
 kasaAddForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  // Personel yalnızca kendine atanmış mağazaya kayıt ekleyebilir; select kilitli olsa da
+  // storeId burada tekrar zorlanır (ekstra güvenlik).
+  let storeId = isAdmin ? kasaStoreSelect.value : myAssignedStoreId;
+  if (!storeId) {
+    showToast(isAdmin ? "Önce bir mağaza seçin." : "Size henüz bir mağaza atanmadı.");
+    return;
+  }
   const date = kasaDate.value;
   const description = kasaDesc.value.trim();
   const type = kasaType.value;
@@ -463,7 +562,9 @@ kasaAddForm.addEventListener("submit", async (e) => {
   if (!date || !description || !amount || amount <= 0) return;
   try {
     await addDoc(collection(db, "kasaDefteri"), {
-      date, description, type, amount, createdAt: serverTimestamp()
+      storeId, date, description, type, amount,
+      createdBy: currentUserLabel.textContent || "",
+      createdAt: serverTimestamp()
     });
     kasaDesc.value = "";
     kasaAmount.value = "";
@@ -474,7 +575,12 @@ kasaAddForm.addEventListener("submit", async (e) => {
   }
 });
 
-async function deleteKasaEntry(id, description) {
+async function deleteKasaEntry(id, description, storeId) {
+  // Personel yalnızca kendi mağazasının kaydını silebilir.
+  if (!isAdmin && storeId !== myAssignedStoreId) {
+    showToast("Bu kaydı silme yetkiniz yok.");
+    return;
+  }
   if (!confirm(`"${description}" kaydı silinsin mi?`)) return;
   try {
     await deleteDoc(doc(db, "kasaDefteri", id));
@@ -878,9 +984,11 @@ function listenStores() {
     renderOverview();
     populateStoreSelect();
     populateCiroStoreSelect();
+    populateKasaStoreSelect();
     if (currentView === "stores") renderStoreDetail();
     if (currentView === "search") renderGlobalSearchResults();
     if (currentView === "ciro") renderCiroView();
+    if (currentView === "kasadefteri") renderKasaDefteri();
     if (currentView === "adminSettings") renderAdminSettings();
   }, err => showToast("Mağaza listesi alınamadı: " + err.message));
 }

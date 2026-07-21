@@ -89,7 +89,7 @@
           <button class="nav-item" data-view="ciro" type="button">
             <span class="nav-ico">↗</span> Ciro
           </button>
-          <button class="nav-item admin-only" id="kasaDefteriNavBtn" data-view="kasadefteri" type="button" style="display:none;">
+          <button class="nav-item" id="kasaDefteriNavBtn" data-view="kasadefteri" type="button">
             <span class="nav-ico">▧</span> Kasa Defteri
           </button>
           <button class="nav-item admin-only" id="adminSettingsNavBtn" data-view="adminSettings" type="button" style="display:none;">
@@ -199,8 +199,13 @@
           </div>
         </main>
 
-        <!-- ============ KASA DEFTERİ (SADECE ADMIN) ============ -->
+        <!-- ============ KASA DEFTERİ (TÜM KULLANICILARA AÇIK, MAĞAZA BAZLI) ============ -->
         <main id="kasaDefteriView" class="kasa-view" style="display:none;">
+          <div class="store-picker-row" id="kasaStorePickerRow">
+            <label for="kasaStoreSelect">Mağaza seç</label>
+            <select id="kasaStoreSelect"></select>
+          </div>
+
           <div class="kasa-summary">
             <div class="kasa-summary-item">
               <div class="kasa-summary-label">Toplam Gelir</div>
@@ -228,6 +233,11 @@
           </form>
 
           <div id="kasaList" class="kasa-list"></div>
+
+          <div id="kasaAllStoresSection">
+            <div class="ciro-section-title">Tüm Mağazalar — Bakiye</div>
+            <div id="kasaAllStoresList" class="ciro-monthly-list"></div>
+          </div>
         </main>
 
         <!-- ============ ADMIN AYARLARI (SADECE ADMIN) ============ -->
@@ -237,9 +247,10 @@
             <button type="button" id="addCiroAssignmentBtn" class="mini-btn">+ Ekle</button>
           </div>
           <p class="admin-settings-hint">
-            Bir kullanıcıya mağaza atadığınızda, o kullanıcı Ciro sayfasında yalnızca
-            atanan mağazanın cirosunu görebilir ve o mağaza için ekleme/silme yapabilir.
-            Admin her zaman tüm mağazaların cirosunu görebilir.
+            Bir kullanıcıya mağaza atadığınızda, o kullanıcı hem Ciro hem de Kasa Defteri
+            sayfalarında yalnızca atanan mağazaya ait kayıtları görebilir ve o mağaza için
+            ekleme/silme yapabilir. Admin her zaman tüm mağazaların cirosunu ve kasa
+            defterini görebilir.
           </p>
           <div id="ciroAssignmentsList" class="kasa-list"></div>
         </main>
