@@ -427,9 +427,16 @@ function restartKasaListener() {
       if (currentView === "kasadefteri") renderKasaDefteri();
     }, err => showToast("Kasa defteri alınamadı: " + err.message));
   } else if (myAssignedStoreId) {
-    const q = query(collection(db, "kasaDefteri"), where("storeId", "==", myAssignedStoreId), orderBy("date", "desc"));
+    // Ciro dinleyicisinde olduğu gibi: where("storeId", "==", ...) ile
+    // orderBy("date", "desc") birlikte kullanılırsa Firestore composite index
+    // ister; index oluşturulmadığı sürece sorgu sessizce başarısız olur ve
+    // personel kendi mağazasının kasa defteri kayıtlarını göremez. Bunu önlemek
+    // için sadece storeId'ye göre filtreleyip sıralamayı JS tarafında yapıyoruz.
+    const q = query(collection(db, "kasaDefteri"), where("storeId", "==", myAssignedStoreId));
     kasaDefteriUnsub = onSnapshot(q, snap => {
-      kasaEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      kasaEntries = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
       if (currentView === "kasadefteri") renderKasaDefteri();
     }, err => showToast("Kasa defteri alınamadı: " + err.message));
   } else {
