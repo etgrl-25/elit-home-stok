@@ -620,9 +620,18 @@ function restartCiroListener() {
       if (currentView === "ciro") renderCiroView();
     }, err => showToast("Ciro kayıtları alınamadı: " + err.message));
   } else if (myAssignedStoreId) {
-    const q = query(collection(db, "ciro"), where("storeId", "==", myAssignedStoreId), orderBy("date", "desc"));
+    // Not: Burada bilerek orderBy("date") KULLANILMIYOR. where("storeId", "==", ...)
+    // ile orderBy("date") birlikte kullanılırsa Firestore bunun için özel bir
+    // "composite index" (bileşik dizin) ister; bu dizin Firebase konsolunda
+    // oluşturulmadığı sürece sorgu sessizce "failed-precondition" hatasıyla
+    // başarısız olur ve personel kendi eklediği ciroyu hiç göremez (tam olarak
+    // bildirdiğiniz sorun). Bunu önlemek için mağazaya göre filtreleyip
+    // sıralamayı liste geldikten sonra JavaScript tarafında yapıyoruz.
+    const q = query(collection(db, "ciro"), where("storeId", "==", myAssignedStoreId));
     ciroUnsub = onSnapshot(q, snap => {
-      ciroEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      ciroEntries = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
       if (currentView === "ciro") renderCiroView();
     }, err => showToast("Ciro kayıtları alınamadı: " + err.message));
   } else {
