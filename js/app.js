@@ -5,7 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
-  onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch, getDoc
+  onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch, getDoc, getDocsFromServer, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
@@ -709,6 +709,7 @@ async function deleteCiroEntry(id, label, storeId) {
 }
 
 function renderCiroView() {
+  document.getElementById("ciroYearSection").hidden = !storesMeta.length || (!isAdmin && !myAssignedStoreId);
   // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
   // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
   ciroAllStoresSection.style.display = isAdmin ? "block" : "none";
@@ -740,6 +741,8 @@ function renderCiroView() {
 
   if (!ciroStoreSelect.value) populateCiroStoreSelect();
   const storeId = ciroStoreSelect.value;
+
+  renderCiroYear();
 
   // Bu mağazanın kayıtları (gün gün)
   const storeEntries = ciroEntries.filter(c => c.storeId === storeId);
@@ -1820,3 +1823,123 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   });
 }
+
+// Yıllık toplamlar, mevcut ciro dinleyicisiyle canlı güncellenir.
+document.getElementById("ciroYearSelect").addEventListener("change", renderCiroYear);
+function renderCiroYear() {
+  const select = document.getElementById("ciroYearSelect");
+  const years = [...new Set([String(new Date().getFullYear()), ...ciroEntries
+    .map(c => (c.date || "").slice(0, 4)).filter(y => /^\d{4}$/.test(y))])].sort().reverse();
+  const selected = years.includes(select.value) ? select.value : String(new Date().getFullYear());
+  select.replaceChildren(...years.map(y => { const o = document.createElement("option"); o.value = y; o.textContent = y; return o; }));
+  select.value = selected;
+  const totalFor = id => ciroEntries.filter(c => c.storeId === id && (c.date || "").startsWith(selected + "-"))
+    .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+  document.getElementById("ciroYearTotal").textContent = formatCurrency(totalFor(isAdmin ? ciroStoreSelect.value : myAssignedStoreId));
+  const list = document.getElementById("ciroYearStores");
+  list.replaceChildren();
+  list.hidden = !isAdmin;
+  if (!isAdmin) return;
+  const rows = storesMeta.map(s => [s.name, totalFor(s.id)]);
+  rows.push(["Tüm Mağazalar — Yıllık Genel Toplam", ciroEntries.filter(c => (c.date || "").startsWith(selected + "-")).reduce((sum,c) => sum + (Number(c.amount) || 0), 0)]);
+  rows.forEach(([name, total], i) => {
+    const row = document.createElement("div");
+    row.className = "ciro-monthly-row" + (i === rows.length - 1 ? " grand-total" : "");
+    row.innerHTML = '<span class="ciro-monthly-row-label">' + escapeHtml(name) + '</span><span class="ciro-monthly-row-total">' + formatCurrency(total) + '</span>';
+    list.appendChild(row);
+  });
+}
+
+const BACKUP_COLLECTIONS = ["stores", "categories", "showroomProducts", "ciro", "kasaDefteri", "users"];
+const backupStatus = document.getElementById("backupStatus");
+function encodeBackup(value) {
+  if (value instanceof Timestamp) return { __backupTimestamp: [value.seconds, value.nanoseconds] };
+  if (Array.isArray(value)) return value.map(encodeBackup);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k,v]) => [k, encodeBackup(v)]));
+  return value;
+}
+function decodeBackup(value) {
+  if (value && typeof value === "object" && Object.hasOwn(value, "__backupTimestamp")) {
+    const t = value.__backupTimestamp;
+    if (Object.keys(value).length !== 1 || !Array.isArray(t) || t.length !== 2 || !t.every(Number.isInteger)) throw Error("Geçersiz tarih alanı.");
+    return new Timestamp(t[0], t[1]);
+  }
+  if (Array.isArray(value)) return value.map(decodeBackup);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k,v]) => [k, decodeBackup(v)]));
+  return value;
+}
+async function collectBackup() {
+  const records = [];
+  for (const name of BACKUP_COLLECTIONS) {
+    const snap = await getDocsFromServer(collection(db, name));
+    for (const item of snap.docs) {
+      records.push({ path: name + "/" + item.id, data: encodeBackup(item.data()) });
+      if (name === "stores") {
+        const products = await getDocsFromServer(collection(db, "stores", item.id, "products"));
+        products.forEach(product => records.push({ path: "stores/" + item.id + "/products/" + product.id, data: encodeBackup(product.data()) }));
+      }
+    }
+  }
+  return { format: "elit-home-backup", version: 1, projectId: FIREBASE_CONFIG.projectId, createdAt: new Date().toISOString(), records };
+}
+function downloadBackup(data, prefix = "elit-home-yedek") {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url; link.download = prefix + "-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+async function backupAction(action) {
+  if (!isAdmin || !auth.currentUser) return;
+  const buttons = [document.getElementById("backupDownload"), document.getElementById("backupRestore"), document.getElementById("backupFile")];
+  buttons.forEach(b => b.disabled = true);
+  try { await action(); } catch (err) { backupStatus.textContent = "İşlem tamamlanamadı: " + err.message; }
+  finally { buttons.forEach(b => b.disabled = false); }
+}
+document.getElementById("backupDownload").addEventListener("click", () => backupAction(async () => {
+  backupStatus.textContent = "Güncel veriler alınıyor…";
+  const backup = await collectBackup();
+  downloadBackup(backup);
+  backupStatus.textContent = backup.records.length + " kayıt için yedek indirme başlatıldı.";
+}));
+function validateBackup(data) {
+  if (data?.format !== "elit-home-backup" || data.version !== 1 || data.projectId !== FIREBASE_CONFIG.projectId || !Array.isArray(data.records) || !data.records.length)
+    throw Error("Dosya geçersiz, boş veya başka bir Firebase projesine ait.");
+  const seen = new Set();
+  return data.records.map(record => {
+    if (typeof record.path !== "string") throw Error("Geçersiz kayıt yolu.");
+    const parts = record.path.split("/");
+    const validId = id => id && id !== "." && id !== ".." && !/^__.*__$/.test(id);
+    if (!((parts.length === 2 && BACKUP_COLLECTIONS.includes(parts[0]) && validId(parts[1])) ||
+      (parts.length === 4 && parts[0] === "stores" && parts[2] === "products" && validId(parts[1]) && validId(parts[3]))) ||
+      seen.has(record.path) || !record.data || typeof record.data !== "object" || Array.isArray(record.data))
+      throw Error("Geçersiz veya yinelenen kayıt.");
+    seen.add(record.path);
+    return { path: record.path, data: decodeBackup(record.data) };
+  }).filter(record => !record.path.startsWith("users/"));
+}
+document.getElementById("backupRestore").addEventListener("click", () => backupAction(async () => {
+  const file = document.getElementById("backupFile").files[0];
+  if (!file) throw Error("Önce bir JSON yedeği seçin.");
+  if (file.size > 50 * 1024 * 1024) throw Error("Dosya 50 MB sınırını aşıyor.");
+  const records = validateBackup(JSON.parse(await file.text()));
+  if (!records.length) throw Error("Yüklenecek işletme kaydı bulunamadı.");
+  if (!confirm(records.length + " kayıt geri yüklenecek. Aynı kimlikteki kayıtların mevcut içeriği değiştirilecek; diğer kayıtlar korunacak. Önce mevcut verilerin güvenlik yedeği indirilecek. Devam edilsin mi?")) return;
+  backupStatus.textContent = "Geri yükleme öncesi güvenlik yedeği hazırlanıyor…";
+  downloadBackup(await collectBackup(), "elit-home-geri-yukleme-oncesi");
+  let completed = 0;
+  try {
+    for (let i = 0; i < records.length; i += 200) {
+      if (!isAdmin || !auth.currentUser) throw Error("Yönetici oturumu sona erdi.");
+      const batch = writeBatch(db);
+      records.slice(i, i + 200).forEach(r => batch.set(doc(db, r.path), r.data));
+      await batch.commit();
+      completed += Math.min(200, records.length - i);
+      backupStatus.textContent = completed + " / " + records.length + " kayıt yüklendi…";
+    }
+  } catch (err) {
+    throw Error(completed + " kayıt yüklendi, işlem durdu. Aynı dosyayı yeniden yüklemek kayıtları çoğaltmaz. " + err.message);
+  }
+  backupStatus.textContent = records.length + " kayıt geri yüklendi. Kullanıcı rolleri ve atamaları korundu.";
+  document.getElementById("backupFile").value = "";
+}));

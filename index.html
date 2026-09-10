@@ -183,6 +183,12 @@
             </div>
           </div>
 
+          <section id="ciroYearSection">
+            <div class="ciro-section-title">Yıllık Ciro</div>
+            <div class="ciro-all-month-row"><label for="ciroYearSelect">Yıl seç</label><select id="ciroYearSelect"></select></div>
+            <div class="kasa-summary-card"><div class="kasa-summary-label">Seçili Mağaza — Yıllık Toplam</div><div class="kasa-summary-value" id="ciroYearTotal">0 ₺</div></div>
+            <div id="ciroYearStores" class="ciro-monthly-list"></div>
+          </section>
           <div class="ciro-section-title">Günlük Kayıtlar</div>
           <div id="ciroDailyList" class="kasa-list"></div>
 
@@ -253,6 +259,16 @@
             defterini görebilir.
           </p>
           <div id="ciroAssignmentsList" class="kasa-list"></div>
+          <section class="backup-section">
+            <div class="ciro-section-title">Veri Yedekleme ve Geri Yükleme</div>
+            <p class="admin-settings-hint">Mağazalar, ürünler, ürün türleri, teşhir ürünleri, ciro, kasa kayıtları ve kullanıcı profilleri JSON dosyasına indirilir. Giriş şifreleri yedeklenmez.</p>
+            <button type="button" id="backupDownload" class="mini-btn">Yedeği Bilgisayara İndir</button>
+            <div class="ciro-section-title">Yedekten Geri Yükle</div>
+            <p class="admin-settings-hint">Aynı Firebase projesine yüklenebilir. Aynı kimlikteki işletme kayıtları değiştirilir, eksik kayıtlar eklenir; yedekte olmayan kayıtlar silinmez. Güvenlik için kullanıcı rolleri ve mağaza atamaları geri yüklenmez.</p>
+            <input type="file" id="backupFile" accept=".json,application/json" aria-label="Yedek dosyası seç" />
+            <button type="button" id="backupRestore" class="mini-btn">Dosyayı Kontrol Et ve Geri Yükle</button>
+            <p id="backupStatus" role="status" aria-live="polite"></p>
+          </section>
         </main>
       </div>
     </div>
