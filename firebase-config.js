@@ -11,10 +11,10 @@
 // değerleri bir kere girersiniz. Bkz. README.md "Seçenek C".
 // ==========================================================
 export const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCFXgBo-tHQBSXFsbE45-1Iiy8kSVk4k1E",
+  authDomain: "elithome-67b92.firebaseapp.com",
+  projectId: "elithome-67b92",
+  storageBucket: "elithome-67b92.firebasestorage.app",
+  messagingSenderId: "809627969318",
+  appId: "1:809627969318:web:51b413f8118340d0f203e7"
 };
