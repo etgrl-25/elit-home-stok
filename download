@@ -1,0 +1,12 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebaserc
+
+# Sistem / editör dosyaları
+.DS_Store
+Thumbs.db
+.vscode/
+node_modules/

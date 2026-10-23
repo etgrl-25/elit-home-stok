@@ -17,7 +17,7 @@
 <link rel="icon" href="icons/icon-192.png" type="image/png" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -77,33 +77,32 @@
           <button class="nav-item" data-view="stores" type="button">
             <span class="nav-ico">▥</span> Mağazalar
           </button>
-          <button class="nav-item" data-view="search" type="button">
-            <span class="nav-ico">⌕</span> Tüm Ürünlerde Ara
-          </button>
-          <button class="nav-item" data-view="showroom" type="button">
-            <span class="nav-ico">◈</span> Teşhir Ürünler
-          </button>
-          <button class="nav-item" data-view="categories" type="button">
-            <span class="nav-ico">▤</span> Ürün Türleri
-          </button>
-          <button class="nav-item" data-view="ciro" type="button">
-            <span class="nav-ico">↗</span> Ciro
-          </button>
-          <button class="nav-item" id="kasaDefteriNavBtn" data-view="kasadefteri" type="button">
-            <span class="nav-ico">▧</span> Kasa Defteri
-          </button>
-          <button class="nav-item admin-only" id="adminSettingsNavBtn" data-view="adminSettings" type="button" style="display:none;">
-            <span class="nav-ico">⚙</span> Admin Ayarları
-          </button>
         </nav>
 
+        <div class="sidebar-search">
+          <input type="text" id="globalSearchInput" placeholder="Tüm mağazalarda ara (ürün / tür)…" />
+        </div>
+
         <div class="sidebar-stores">
-          <div class="sidebar-stores-title">Mağazalarım</div>
-          <div id="sidebarStoreList" class="sidebar-store-list"></div>
-          <form id="addStoreForm" class="add-store-form">
-            <input type="text" id="newStoreName" placeholder="Yeni mağaza adı" maxlength="40" required />
-            <button type="submit">+</button>
-          </form>
+          <div id="globalSearchResults" class="global-search-results" style="display:none;"></div>
+          <div id="sidebarListsWrap">
+            <div class="sidebar-group">
+              <div class="sidebar-stores-title">Mağazalarım</div>
+              <div id="sidebarStoreList" class="sidebar-store-list"></div>
+              <form id="addStoreForm" class="add-store-form">
+                <input type="text" id="newStoreName" placeholder="Yeni mağaza adı" maxlength="40" required />
+                <button type="submit">+</button>
+              </form>
+            </div>
+            <div class="sidebar-group">
+              <div class="sidebar-stores-title">Kategoriler</div>
+              <div id="sidebarCategoryList" class="sidebar-store-list"></div>
+              <form id="addCategoryForm" class="add-store-form">
+                <input type="text" id="newCategoryName" placeholder="Yeni kategori adı" maxlength="40" required />
+                <button type="submit">+</button>
+              </form>
+            </div>
+          </div>
         </div>
 
         <div class="sidebar-foot">
@@ -134,235 +133,9 @@
           </div>
           <div id="storeDetailWrap"></div>
         </main>
-
-        <!-- ============ TÜM ÜRÜNLERDE ARA ============ -->
-        <main id="searchView" class="search-view" style="display:none;">
-          <div class="search-bar-row">
-            <input type="text" id="globalSearchInput" placeholder="Ürün adı, açıklama veya tür ara…" autocomplete="off" />
-          </div>
-          <div id="globalSearchResults" class="global-search-results"></div>
-        </main>
-
-        <!-- ============ TEŞHİR ÜRÜNLER ============ -->
-        <main id="showroomView" class="store-detail" style="display:none;">
-          <div id="showroomWrap"></div>
-        </main>
-
-        <!-- ============ ÜRÜN TÜRLERİ (KATEGORİLER) ============ -->
-        <main id="categoriesView" class="categories-view" style="display:none;">
-          <div class="cat-add-row">
-            <label class="cat-icon-upload" for="newCategoryIconInput">
-              <img id="newCategoryIconPreview" style="display:none;" alt="" />
-              <span id="newCategoryIconPlaceholder">İkon</span>
-              <input type="file" accept="image/*" id="newCategoryIconInput" hidden />
-            </label>
-            <input type="text" id="newCategoryName" placeholder="Yeni tür adı (ör. Koltuk Takımları)" maxlength="40" />
-            <button id="addCategoryBtn" class="add-btn" title="Tür ekle">+</button>
-          </div>
-          <div id="categoriesList" class="categories-list"></div>
-        </main>
-
-        <!-- ============ CİRO (TÜM KULLANICILARA AÇIK) ============ -->
-        <main id="ciroView" class="ciro-view" style="display:none;">
-          <div class="store-picker-row" id="ciroStorePickerRow">
-            <label for="ciroStoreSelect">Mağaza seç</label>
-            <select id="ciroStoreSelect"></select>
-          </div>
-
-          <form id="ciroAddForm" class="kasa-add-row">
-            <input type="date" id="ciroDate" required />
-            <input type="number" id="ciroAmount" placeholder="Ciro tutarı" min="0" step="0.01" required />
-            <input type="text" id="ciroNote" placeholder="Not / o gün ne yapıldı (opsiyonel)" maxlength="140" />
-            <button type="submit" class="add-btn" title="Ciro ekle">+</button>
-          </form>
-
-          <div class="kasa-summary kasa-summary-single">
-            <div class="kasa-summary-item kasa-summary-balance">
-              <div class="kasa-summary-label">Bu Ayki Ciro — <span id="ciroCurrentMonthLabel"></span></div>
-              <div class="kasa-summary-value" id="ciroCurrentMonthTotal">0 ₺</div>
-            </div>
-          </div>
-
-          <section id="ciroYearSection">
-            <div class="ciro-section-title">Yıllık Ciro</div>
-            <div class="ciro-all-month-row"><label for="ciroYearSelect">Yıl seç</label><select id="ciroYearSelect"></select></div>
-            <div class="kasa-summary-card"><div class="kasa-summary-label">Seçili Mağaza — Yıllık Toplam</div><div class="kasa-summary-value" id="ciroYearTotal">0 ₺</div></div>
-            <div id="ciroYearStores" class="ciro-monthly-list"></div>
-          </section>
-          <div class="ciro-section-title">Günlük Kayıtlar</div>
-          <div id="ciroDailyList" class="kasa-list"></div>
-
-          <div class="ciro-section-title">Aylık Ciro Geçmişi — Bu Mağaza</div>
-          <div id="ciroMonthlyList" class="ciro-monthly-list"></div>
-
-          <div id="ciroAllStoresSection">
-            <div class="ciro-section-title">Tüm Mağazalar — Aylık Ciro</div>
-            <div class="ciro-all-month-row">
-              <label for="ciroAllMonthSelect">Ay seç</label>
-              <select id="ciroAllMonthSelect"></select>
-            </div>
-            <div id="ciroAllStoresList" class="ciro-monthly-list"></div>
-          </div>
-        </main>
-
-        <!-- ============ KASA DEFTERİ (TÜM KULLANICILARA AÇIK, MAĞAZA BAZLI) ============ -->
-        <main id="kasaDefteriView" class="kasa-view" style="display:none;">
-          <div class="store-picker-row" id="kasaStorePickerRow">
-            <label for="kasaStoreSelect">Mağaza seç</label>
-            <select id="kasaStoreSelect"></select>
-          </div>
-
-          <div class="kasa-summary">
-            <div class="kasa-summary-item">
-              <div class="kasa-summary-label">Toplam Gelir</div>
-              <div class="kasa-summary-value" id="kasaTotalIncome">0 ₺</div>
-            </div>
-            <div class="kasa-summary-item">
-              <div class="kasa-summary-label">Toplam Gider</div>
-              <div class="kasa-summary-value" id="kasaTotalExpense">0 ₺</div>
-            </div>
-            <div class="kasa-summary-item kasa-summary-balance">
-              <div class="kasa-summary-label">Bakiye</div>
-              <div class="kasa-summary-value" id="kasaBalance">0 ₺</div>
-            </div>
-          </div>
-
-          <form id="kasaAddForm" class="kasa-add-row">
-            <input type="date" id="kasaDate" required />
-            <input type="text" id="kasaDesc" placeholder="Açıklama" maxlength="120" required />
-            <select id="kasaType">
-              <option value="gelir">Gelir</option>
-              <option value="gider">Gider</option>
-            </select>
-            <input type="number" id="kasaAmount" placeholder="Tutar" min="0" step="0.01" required />
-            <button type="submit" class="add-btn" title="Kayıt ekle">+</button>
-          </form>
-
-          <div id="kasaList" class="kasa-list"></div>
-
-          <div id="kasaAllStoresSection">
-            <div class="ciro-section-title">Tüm Mağazalar — Bakiye</div>
-            <div id="kasaAllStoresList" class="ciro-monthly-list"></div>
-          </div>
-        </main>
-
-        <!-- ============ ADMIN AYARLARI (SADECE ADMIN) ============ -->
-        <main id="adminSettingsView" class="ciro-view" style="display:none;">
-          <div class="ciro-section-title-row">
-            <div class="ciro-section-title">Ciro — Mağaza Atamaları</div>
-            <button type="button" id="addCiroAssignmentBtn" class="mini-btn">+ Ekle</button>
-          </div>
-          <p class="admin-settings-hint">
-            Bir kullanıcıya mağaza atadığınızda, o kullanıcı hem Ciro hem de Kasa Defteri
-            sayfalarında yalnızca atanan mağazaya ait kayıtları görebilir ve o mağaza için
-            ekleme/silme yapabilir. Admin her zaman tüm mağazaların cirosunu ve kasa
-            defterini görebilir.
-          </p>
-          <div id="ciroAssignmentsList" class="kasa-list"></div>
-          <section class="backup-section">
-            <div class="ciro-section-title">Veri Yedekleme ve Geri Yükleme</div>
-            <p class="admin-settings-hint">Mağazalar, ürünler, ürün türleri, teşhir ürünleri, ciro, kasa kayıtları ve kullanıcı profilleri JSON dosyasına indirilir. Giriş şifreleri yedeklenmez.</p>
-            <button type="button" id="backupDownload" class="mini-btn">Yedeği Bilgisayara İndir</button>
-            <div class="ciro-section-title">Yedekten Geri Yükle</div>
-            <p class="admin-settings-hint">Aynı Firebase projesine yüklenebilir. Aynı kimlikteki işletme kayıtları değiştirilir, eksik kayıtlar eklenir; yedekte olmayan kayıtlar silinmez. Güvenlik için kullanıcı rolleri ve mağaza atamaları geri yüklenmez.</p>
-            <input type="file" id="backupFile" accept=".json,application/json" aria-label="Yedek dosyası seç" />
-            <button type="button" id="backupRestore" class="mini-btn">Dosyayı Kontrol Et ve Geri Yükle</button>
-            <p id="backupStatus" role="status" aria-live="polite"></p>
-          </section>
-        </main>
       </div>
     </div>
   </section>
-
-  <!-- ============ ÜRÜN DETAY MODALI ============ -->
-  <div id="productModalBackdrop" class="modal-backdrop" style="display:none;">
-    <div class="modal product-modal">
-      <button class="modal-close" id="productModalClose" aria-label="Kapat">✕</button>
-
-      <div class="product-modal-image-wrap">
-        <img id="productModalImg" class="product-modal-img" style="display:none;" alt="" />
-        <div id="productModalImgPlaceholder" class="product-modal-img-placeholder">Görsel yok</div>
-        <div class="product-modal-image-actions">
-          <label class="image-upload-btn" for="productModalImageInput">Görsel Ekle / Değiştir</label>
-          <input type="file" accept="image/*" id="productModalImageInput" hidden />
-          <button type="button" id="productModalImageRemove" class="image-remove-btn" style="display:none;">Görseli Kaldır</button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="productModalName">Ürün Adı</label>
-        <input type="text" id="productModalName" maxlength="80" />
-      </div>
-      <div class="field">
-        <label for="productModalDesc">Açıklama <span class="field-hint">(ör. 2 üçlü 2 berjer)</span></label>
-        <textarea id="productModalDesc" rows="2" maxlength="200" placeholder="Ürün açıklaması / varyant bilgisi…"></textarea>
-      </div>
-      <div class="field">
-        <label for="productModalCategory">Tür</label>
-        <div class="category-select-row">
-          <select id="productModalCategory"><option value="">— Tür seçilmedi —</option></select>
-          <button type="button" id="productModalNewCategory" class="mini-btn">+ Yeni Tür</button>
-        </div>
-      </div>
-      <div class="field">
-        <label>Stok</label>
-        <div class="stepper large">
-          <button type="button" class="step-btn" data-role="modal-minus">−</button>
-          <input type="number" id="productModalStock" min="0" />
-          <button type="button" class="step-btn" data-role="modal-plus">+</button>
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <button type="button" id="productModalSave" class="primary-btn">Kaydet</button>
-        <button type="button" id="productModalShowroomBtn" class="showroom-btn" style="display:none;">◈ Teşhir Ürünlere Ekle</button>
-        <button type="button" id="productModalDelete" class="danger-btn">Ürünü Sil</button>
-      </div>
-      <div class="modal-msg" id="productModalMsg"></div>
-    </div>
-  </div>
-
-  <!-- ============ YENİ TÜR HIZLI EKLEME MODALI ============ -->
-  <div id="categoryModalBackdrop" class="modal-backdrop" style="display:none;">
-    <div class="modal category-modal">
-      <button class="modal-close" id="categoryModalClose" aria-label="Kapat">✕</button>
-      <div class="brand-inline" style="color:var(--ink);margin-bottom:14px;">Yeni Ürün Türü</div>
-      <div class="cat-add-row">
-        <label class="cat-icon-upload" for="quickCategoryIconInput">
-          <img id="quickCategoryIconPreview" style="display:none;" alt="" />
-          <span id="quickCategoryIconPlaceholder">İkon</span>
-          <input type="file" accept="image/*" id="quickCategoryIconInput" hidden />
-        </label>
-        <input type="text" id="quickCategoryName" placeholder="Tür adı" maxlength="40" />
-      </div>
-      <button type="button" id="quickCategorySave" class="primary-btn" style="margin-top:12px;">Türü Ekle</button>
-      <div class="modal-msg" id="categoryModalMsg"></div>
-    </div>
-  </div>
-
-  <!-- ============ CİRO ATAMA MODALI (SADECE ADMIN) ============ -->
-  <div id="assignmentModalBackdrop" class="modal-backdrop" style="display:none;">
-    <div class="modal category-modal">
-      <button class="modal-close" id="assignmentModalClose" aria-label="Kapat">✕</button>
-      <div class="brand-inline" style="color:var(--ink);margin-bottom:14px;">Ciro Ataması</div>
-
-      <div class="field">
-        <label for="assignmentUserSelect">Kullanıcı Seç</label>
-        <select id="assignmentUserSelect">
-          <option value="">— Kullanıcı seçin —</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="assignmentStoreSelect">Mağaza Seç</label>
-        <select id="assignmentStoreSelect">
-          <option value="">— Mağaza seçin —</option>
-        </select>
-      </div>
-
-      <button type="button" id="assignmentSaveBtn" class="primary-btn" style="margin-top:4px;">Kaydet</button>
-      <div class="modal-msg" id="assignmentModalMsg"></div>
-    </div>
-  </div>
 
 </div>
 
