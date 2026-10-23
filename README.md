@@ -10,6 +10,7 @@ PWA (Progressive Web App).
 - Sol menüden (☰) istediğiniz kadar mağaza ekleyip, yeniden adlandırıp silebilirsiniz
 - **Genel Bakış**: tüm mağazaları aynı anda, yan yana gösteren ızgara görünümü
 - **Mağazalar**: açılır listeden seçtiğiniz tek bir mağazayı büyük görünümde inceleme
+- **Ciro**: sol menüden tarih/tutar/not ile mağaza bazında ciro girilir; yıllık toplam hesaplanır. Mağaza satırındaki "Toplama dahil" kutusu kaldırılırsa (ör. Bosch) o mağazanın cirosu yıllık toplama eklenmez. Adında "bosch" geçen mağaza, ayar yapılana kadar varsayılan olarak toplam dışında tutulur
 - **Kategoriler**: sol menüde "Mağazalarım" altında ayrı bir "Kategoriler" grubu (varsayılan olarak "Teşhir Ürünler" otomatik oluşur); mağazalardaki gibi ürün eklenir
 - Ürünlerde **tür** ve **açıklama** alanı (ör. ad: "Bodrum Koltuk Takımı", açıklama: "2 üçlü, 2 berjer"); ad üstte, açıklama altta görünür
 - Ürüne tıklayınca stok (+/−) ve **görsel ekleme** paneli açılır; görseller küçültülüp Firestore'da saklanır (Firebase Storage gerekmez)
@@ -226,7 +227,9 @@ tam ekran açılır ve internet kesilse bile arayüz önbellekten yüklenir
 stores/
   {storeId}: { name: string, createdAt: timestamp }
   {storeId}/products/
-    {productId}: { name: string, stock: number, updatedAt: timestamp }
+    {productId}: { name, category, description, stock, image?, updatedAt }
+  {storeId}/revenue/
+    {entryId}: { amount: number, date: 'YYYY-MM-DD', note, createdAt }
 ```
 
 Mağaza eklemek/silmek/yeniden adlandırmak artık uygulama içinden

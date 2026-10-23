@@ -491,6 +491,34 @@ main.boards{
   padding:9px 0;font-size:12.5px;font-weight:700;cursor:pointer;}
 .expand-delete-btn:hover{background:var(--danger);color:#fff;}
 
+/* ----- Ciro ----- */
+.revenue-view{padding:22px 24px calc(50px + var(--safe-bottom));max-width:860px;display:flex;flex-direction:column;gap:18px;}
+.rev-card{background:var(--card);border:2px solid var(--line-strong);border-radius:var(--radius);padding:16px 18px;}
+.rev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.rev-title{font-family:'Fraunces',serif;font-weight:700;font-size:16px;}
+.rev-year-select{padding:8px 10px;border-radius:7px;border:2px solid var(--line-strong);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;background:#fff;}
+.rev-total-label{font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--ink-soft);margin-top:12px;}
+.rev-total{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:clamp(26px,6vw,34px);margin-top:2px;}
+.rev-note{font-size:12px;color:var(--ink-soft);margin-top:8px;line-height:1.5;}
+.rev-store-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);}
+.rev-store-row:first-of-type{border-top:none;}
+.rev-store-name{flex:1;min-width:0;font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:8px;}
+.rev-store-amount{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13.5px;}
+.rev-store-amount.excluded{color:var(--ink-soft);text-decoration:line-through;}
+.rev-toggle{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;white-space:nowrap;}
+.rev-toggle input{width:18px;height:18px;accent-color:var(--ink);}
+.rev-form{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;}
+.rev-form .full{grid-column:1 / -1;}
+.rev-form select,.rev-form input{width:100%;padding:10px;border-radius:7px;border:2px solid var(--line-strong);font-size:16px;font-family:'Inter',sans-serif;background:#fff;}
+.rev-form input:focus,.rev-form select:focus{outline:none;border-color:var(--accent);}
+.rev-entry{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);}
+.rev-entry:first-of-type{border-top:none;}
+.rev-entry-main{flex:1;min-width:0;}
+.rev-entry-top{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.rev-entry-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rev-out-badge{font-size:9.5px;font-weight:700;text-transform:uppercase;background:var(--bg-deep);padding:1px 6px;border-radius:4px;color:var(--ink-soft);}
+@media (max-width:680px){.revenue-view{padding:16px 14px calc(40px + var(--safe-bottom));}}
+
 /* ----- Mağazalar (tekli görünüm) ----- */
 .store-detail{
   padding:22px 24px calc(50px + var(--safe-bottom));

@@ -48,6 +48,7 @@ const addCategoryForm = $("addCategoryForm"), newCategoryNameInput = $("newCateg
 const storeSelect = $("storeSelect"), storeDetailWrap = $("storeDetailWrap");
 const globalSearchInput = $("globalSearchInput"), globalSearchResults = $("globalSearchResults");
 const sidebarListsWrap = $("sidebarListsWrap");
+const revenueView = $("revenueView");
 
 const SHOWCASE_NAME = "Teşhir Ürünler";
 const MAX_IMAGE_DIM = 480;
@@ -62,6 +63,11 @@ const storesMeta = [];
 const storeProducts = {};
 const searchTerms = {};
 const expandedProducts = new Set();
+const revenueUnsubs = {};       // storeId -> unsubscribe fn
+const storeRevenue = {};        // storeId -> [{id, amount, date, note}]
+let revenueYear = new Date().getFullYear();
+let revenueBuilt = false;
+const rev = {};                 // ciro ekranı DOM referansları
 
 function showToast(text) {
   toastEl.textContent = text;
@@ -132,8 +138,10 @@ function switchView(view) {
   navItems.forEach(b => b.classList.toggle("active", b.dataset.view === view));
   overviewView.style.display = view === "overview" ? "grid" : "none";
   storesView.style.display = view === "stores" ? "block" : "none";
-  viewTitle.textContent = view === "overview" ? "Genel Bakış" : "Mağazalar";
+  revenueView.style.display = view === "revenue" ? "flex" : "none";
+  viewTitle.textContent = view === "overview" ? "Genel Bakış" : view === "revenue" ? "Ciro" : "Mağazalar";
   if (view === "stores") renderStoreDetail();
+  if (view === "revenue") renderRevenue();
   renderSidebarLists();
   closeSidebar();
 }
@@ -165,6 +173,11 @@ function teardownListeners() {
   storesMeta.length = 0;
   for (const k in storeProducts) delete storeProducts[k];
   expandedProducts.clear();
+  Object.values(revenueUnsubs).forEach(fn => fn && fn());
+  for (const k in revenueUnsubs) delete revenueUnsubs[k];
+  for (const k in storeRevenue) delete storeRevenue[k];
+  revenueBuilt = false;
+  revenueView.innerHTML = "";
 }
 
 async function ensureSeedStores() {
@@ -189,10 +202,14 @@ function listenStores() {
     Object.keys(productUnsubs).forEach(id => {
       if (!ids.has(id)) { productUnsubs[id](); delete productUnsubs[id]; delete storeProducts[id]; }
     });
+    Object.keys(revenueUnsubs).forEach(id => {
+      if (!ids.has(id)) { revenueUnsubs[id](); delete revenueUnsubs[id]; delete storeRevenue[id]; }
+    });
     storesMeta.length = 0;
     snap.docs.forEach(d => storesMeta.push({ id: d.id, ...d.data(), type: d.data().type || "store" }));
     storesMeta.forEach(s => {
       if (!productUnsubs[s.id]) listenProducts(s.id);
+      if (s.type !== "category" && !revenueUnsubs[s.id]) listenRevenue(s.id);
       if (!(s.id in searchTerms)) searchTerms[s.id] = "";
     });
     if (selectedStoreId && !ids.has(selectedStoreId)) selectedStoreId = null;
@@ -201,6 +218,7 @@ function listenStores() {
     renderOverview();
     populateStoreSelect();
     if (currentView === "stores") renderStoreDetail();
+    if (currentView === "revenue") renderRevenue();
   }, err => showToast("Liste alınamadı: " + err.message));
 }
 
@@ -306,6 +324,8 @@ async function deleteStore(storeId, name) {
     const productsSnap = await getDocs(collection(db, "stores", storeId, "products"));
     const batch = writeBatch(db);
     productsSnap.forEach(d => batch.delete(d.ref));
+    const revSnap = await getDocs(collection(db, "stores", storeId, "revenue"));
+    revSnap.forEach(d => batch.delete(d.ref));
     batch.delete(doc(db, "stores", storeId));
     await batch.commit();
     showToast(`"${name}" silindi.`);
@@ -516,6 +536,171 @@ function fillProductList(card, storeId, color) {
 
     listEl.appendChild(item);
   });
+}
+
+// ---------- Ciro ----------
+function listenRevenue(storeId) {
+  const q = query(collection(db, "stores", storeId, "revenue"), orderBy("date", "desc"));
+  revenueUnsubs[storeId] = onSnapshot(q, snap => {
+    storeRevenue[storeId] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (currentView === "revenue") renderRevenue();
+  }, err => showToast("Ciro alınamadı: " + err.message));
+}
+
+function fmtMoney(n) {
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 }).format(n || 0);
+}
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+// Yıllık toplama dahil mi? Açıkça seçilmediyse "Bosch" mağazası varsayılan olarak hariç tutulur.
+function includedInTotal(store) {
+  if (typeof store.includeInTotal === "boolean") return store.includeInTotal;
+  return !/bosch/i.test(store.name || "");
+}
+
+function buildRevenueShell() {
+  revenueView.innerHTML = `
+    <div class="rev-card">
+      <div class="rev-head">
+        <div class="rev-title">Yıllık Ciro</div>
+        <select class="rev-year-select" data-role="year"></select>
+      </div>
+      <div class="rev-total-label">Toplam (dahil edilen mağazalar)</div>
+      <div class="rev-total" data-role="grand">₺0,00</div>
+      <div class="rev-note" data-role="excluded-note"></div>
+    </div>
+    <div class="rev-card">
+      <div class="rev-title">Mağaza Bazında</div>
+      <div data-role="store-rows" style="margin-top:6px;"></div>
+      <div class="rev-note">Kutuyu kaldırdığınız mağazanın cirosu yıllık toplama eklenmez.</div>
+    </div>
+    <div class="rev-card">
+      <div class="rev-title">Ciro Ekle</div>
+      <div class="rev-form">
+        <select class="full" data-role="f-store"></select>
+        <input type="date" data-role="f-date" />
+        <input type="number" inputmode="decimal" step="0.01" min="0" placeholder="Tutar (₺)" data-role="f-amount" />
+        <input type="text" class="full" placeholder="Not (opsiyonel)" data-role="f-note" />
+        <button class="add-btn-wide full" data-role="f-add" type="button">Ciroyu Ekle</button>
+      </div>
+    </div>
+    <div class="rev-card">
+      <div class="rev-title">Kayıtlar</div>
+      <div data-role="entries" style="margin-top:6px;"></div>
+    </div>`;
+  const q = (r) => revenueView.querySelector(`[data-role="${r}"]`);
+  ["year", "grand", "excluded-note", "store-rows", "f-store", "f-date", "f-amount", "f-note", "f-add", "entries"]
+    .forEach(r => rev[r] = q(r));
+  rev["f-date"].value = todayStr();
+  rev.year.addEventListener("change", () => { revenueYear = parseInt(rev.year.value, 10); renderRevenue(); });
+  rev["f-add"].addEventListener("click", addRevenueEntry);
+  [rev["f-amount"], rev["f-note"]].forEach(el => el.addEventListener("keydown", e => { if (e.key === "Enter") addRevenueEntry(); }));
+  revenueBuilt = true;
+}
+
+function renderRevenue() {
+  if (!revenueBuilt) buildRevenueShell();
+  const stores = storesMeta.filter(s => s.type !== "category");
+
+  // Yıl listesi
+  const years = new Set([new Date().getFullYear()]);
+  stores.forEach(s => (storeRevenue[s.id] || []).forEach(e => { if (e.date) years.add(parseInt(e.date.slice(0, 4), 10)); }));
+  const yearList = [...years].sort((a, b) => b - a);
+  if (!yearList.includes(revenueYear)) revenueYear = yearList[0];
+  rev.year.innerHTML = yearList.map(y => `<option value="${y}">${y}</option>`).join("");
+  rev.year.value = String(revenueYear);
+
+  const inYear = (e) => e.date && e.date.startsWith(String(revenueYear));
+  const rows = stores.map(s => ({
+    store: s,
+    colorIndex: storesMeta.findIndex(x => x.id === s.id),
+    total: (storeRevenue[s.id] || []).filter(inYear).reduce((n, e) => n + (Number(e.amount) || 0), 0),
+    included: includedInTotal(s)
+  }));
+
+  // Toplam
+  const grand = rows.filter(r => r.included).reduce((n, r) => n + r.total, 0);
+  rev.grand.textContent = fmtMoney(grand);
+  const out = rows.filter(r => !r.included);
+  rev["excluded-note"].textContent = out.length
+    ? "Toplama dahil değil: " + out.map(r => `${r.store.name} (${fmtMoney(r.total)})`).join(", ")
+    : "";
+
+  // Mağaza satırları
+  rev["store-rows"].innerHTML = "";
+  if (!rows.length) rev["store-rows"].innerHTML = `<div class="empty-state">Henüz mağaza yok.</div>`;
+  rows.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "rev-store-row";
+    row.innerHTML = `
+      <div class="rev-store-name">
+        <span class="store-dot" style="background:${colorFor(r.colorIndex).c}"></span>
+        <span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.store.name)}</span>
+      </div>
+      <span class="rev-store-amount ${r.included ? "" : "excluded"}">${fmtMoney(r.total)}</span>
+      <label class="rev-toggle"><input type="checkbox" ${r.included ? "checked" : ""} /> Toplama dahil</label>`;
+    row.querySelector("input").addEventListener("change", (e) => setIncludeInTotal(r.store.id, e.target.checked));
+    rev["store-rows"].appendChild(row);
+  });
+
+  // Ekleme formundaki mağaza listesi (seçimi koru)
+  const prevStore = rev["f-store"].value;
+  rev["f-store"].innerHTML = stores.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
+  if (prevStore && stores.some(s => s.id === prevStore)) rev["f-store"].value = prevStore;
+
+  // Kayıtlar (seçili yıl, yeniden eskiye)
+  const entries = [];
+  stores.forEach(s => (storeRevenue[s.id] || []).filter(inYear).forEach(e => entries.push({ ...e, store: s })));
+  entries.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  rev.entries.innerHTML = "";
+  if (!entries.length) rev.entries.innerHTML = `<div class="empty-state">${revenueYear} için kayıt yok.</div>`;
+  entries.slice(0, 100).forEach(e => {
+    const included = includedInTotal(e.store);
+    const el = document.createElement("div");
+    el.className = "rev-entry";
+    el.innerHTML = `
+      <div class="rev-entry-main">
+        <div class="rev-entry-top">
+          <span class="store-dot" style="background:${colorFor(storesMeta.findIndex(x => x.id === e.store.id)).c}"></span>
+          ${escapeHtml(e.store.name)}
+          ${included ? "" : `<span class="rev-out-badge">toplam dışı</span>`}
+        </div>
+        <div class="rev-entry-sub">${escapeHtml(e.date || "")}${e.note ? " · " + escapeHtml(e.note) : ""}</div>
+      </div>
+      <span class="rev-store-amount">${fmtMoney(Number(e.amount) || 0)}</span>
+      <button class="del-btn" title="Kaydı sil">✕</button>`;
+    el.querySelector(".del-btn").addEventListener("click", () => removeRevenueEntry(e.store.id, e.id));
+    rev.entries.appendChild(el);
+  });
+}
+
+async function addRevenueEntry() {
+  const storeId = rev["f-store"].value;
+  const amount = parseFloat(rev["f-amount"].value);
+  const date = rev["f-date"].value || todayStr();
+  if (!storeId) { showToast("Önce bir mağaza seçin."); return; }
+  if (!isFinite(amount) || amount <= 0) { rev["f-amount"].focus(); showToast("Geçerli bir tutar girin."); return; }
+  try {
+    await addDoc(collection(db, "stores", storeId, "revenue"), {
+      amount, date, note: rev["f-note"].value.trim(), createdAt: serverTimestamp()
+    });
+    rev["f-amount"].value = ""; rev["f-note"].value = "";
+    revenueYear = parseInt(date.slice(0, 4), 10);
+    showToast("Ciro eklendi.");
+  } catch (err) { showToast("Ciro eklenemedi: " + err.message); }
+}
+
+async function removeRevenueEntry(storeId, entryId) {
+  if (!confirm("Bu ciro kaydı silinsin mi?")) return;
+  try { await deleteDoc(doc(db, "stores", storeId, "revenue", entryId)); showToast("Kayıt silindi."); }
+  catch (err) { showToast("Silinemedi: " + err.message); }
+}
+
+async function setIncludeInTotal(storeId, value) {
+  try { await updateDoc(doc(db, "stores", storeId), { includeInTotal: value }); }
+  catch (err) { showToast("Ayar kaydedilemedi: " + err.message); }
 }
 
 // ---------- Ürün işlemleri ----------
