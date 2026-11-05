@@ -1896,7 +1896,7 @@ function renderCiroYear() {
   list.hidden = !isAdmin;
   if (!isAdmin) return;
   const rows = storesMeta.map(s => [s.name, totalFor(s.id)]);
-  rows.push(["Tüm Mağazalar — Yıllık Genel Toplam", ciroEntries.filter(c => (c.date || "").startsWith(selected + "-")).reduce((sum,c) => sum + (Number(c.amount) || 0), 0)]);
+  rows.push(["Tüm Mağazalar — Yıllık Genel Toplam", getCiroCombinedTotals(ciroEntries, storesMeta.map(s => s.id), selectedCiroMonth || todayYm(), selected).yearly]);
   rows.forEach(([name, total], i) => {
     const row = document.createElement("div");
     row.className = "ciro-monthly-row" + (i === rows.length - 1 ? " grand-total" : "");
