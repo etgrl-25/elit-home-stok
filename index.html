@@ -19,6 +19,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/weltew-stock.css" />
 </head>
 <body>
 
@@ -71,6 +72,7 @@
         </div>
 
         <nav class="sidebar-nav">
+          <button class="nav-item" id="weltewNavBtn" data-view="weltew" type="button" style="display:none;"><span class="nav-ico">▦</span> Weltew Home Genel Stok</button>
           <button class="nav-item active" data-view="overview" type="button">
             <span class="nav-ico">▦</span> Genel Bakış
           </button>
@@ -125,6 +127,7 @@
           </div>
         </header>
 
+        <main id="weltewView" class="ws-view" style="display:none;"></main>
         <main id="overviewView" class="boards"></main>
 
         <main id="storesView" class="store-detail" style="display:none;">
