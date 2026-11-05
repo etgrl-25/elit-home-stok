@@ -366,6 +366,7 @@ function teardownListeners() {
   ciroEntries = [];
   selectedCiroMonth = null;
   isAdmin = false;
+  renderCiroCombinedTotals();
   myAssignedStoreId = "";
   usersMeta = [];
   editingAssignmentUid = null;
@@ -425,6 +426,7 @@ function listenMyUserDoc(uid) {
   }, err => {
     isAdmin = false;
     myAssignedStoreId = "";
+    renderCiroCombinedTotals();
     console.error("[Kullanıcı rolü] dinleme başarısız:", err);
   });
 }
@@ -724,7 +726,42 @@ async function deleteCiroEntry(id, label, storeId) {
   }
 }
 
+// Tüm mağaza toplamları mevcut ciro verilerinden hesaplanır; yeni sorgu veya kayıt oluşturmaz.
+function getCiroCombinedTotals(entries, storeIds, month, year) {
+  const stores = new Set(storeIds);
+  let monthly = 0, yearly = 0, allTime = 0;
+  for (const entry of entries) {
+    const amount = Number(entry.amount);
+    if (!stores.has(entry.storeId) || !Number.isFinite(amount)) continue;
+    const cents = Math.round(amount * 100);
+    allTime += cents;
+    const date = String(entry.date || '');
+    if (date.startsWith(month + '-')) monthly += cents;
+    if (date.startsWith(year + '-')) yearly += cents;
+  }
+  return { monthly: monthly / 100, yearly: yearly / 100, allTime: allTime / 100 };
+}
+function renderCiroCombinedTotals() {
+  const section = document.getElementById('ciroCombinedSection');
+  const allowed = isAdmin && auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX && storesMeta.length > 0;
+  section.hidden = !allowed;
+  if (!allowed) {
+    ['ciroCombinedMonth','ciroCombinedYear','ciroCombinedAll','ciroCombinedMonthLabel','ciroCombinedYearLabel','ciroCombinedStoreCount'].forEach(id => { document.getElementById(id).textContent = ''; });
+    return;
+  }
+  const month = selectedCiroMonth || todayYm();
+  const year = document.getElementById('ciroYearSelect').value || String(new Date().getFullYear());
+  const totals = getCiroCombinedTotals(ciroEntries, storesMeta.map(s => s.id), month, year);
+  document.getElementById('ciroCombinedMonthLabel').textContent = monthLabel(month);
+  document.getElementById('ciroCombinedYearLabel').textContent = year;
+  document.getElementById('ciroCombinedStoreCount').textContent = storesMeta.length + ' mağaza';
+  document.getElementById('ciroCombinedMonth').textContent = formatCurrency(totals.monthly);
+  document.getElementById('ciroCombinedYear').textContent = formatCurrency(totals.yearly);
+  document.getElementById('ciroCombinedAll').textContent = formatCurrency(totals.allTime);
+}
+
 function renderCiroView() {
+  renderCiroCombinedTotals();
   document.getElementById("ciroYearSection").hidden = !storesMeta.length || (!isAdmin && !myAssignedStoreId);
   // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
   // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
@@ -840,6 +877,7 @@ ciroAllMonthSelect.addEventListener("change", () => {
 });
 
 function renderCiroAllStoresList() {
+  renderCiroCombinedTotals();
   const ym = selectedCiroMonth || todayYm();
   ciroAllStoresList.innerHTML = "";
   let grandTotal = 0;
@@ -1852,6 +1890,7 @@ function renderCiroYear() {
   const totalFor = id => ciroEntries.filter(c => c.storeId === id && (c.date || "").startsWith(selected + "-"))
     .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   document.getElementById("ciroYearTotal").textContent = formatCurrency(totalFor(isAdmin ? ciroStoreSelect.value : myAssignedStoreId));
+  renderCiroCombinedTotals();
   const list = document.getElementById("ciroYearStores");
   list.replaceChildren();
   list.hidden = !isAdmin;
