@@ -169,6 +169,15 @@
 
         <!-- ============ CİRO (TÜM KULLANICILARA AÇIK) ============ -->
         <main id="ciroView" class="ciro-view" style="display:none;">
+          <section id="ciroCombinedSection" class="ciro-combined" hidden aria-label="Tüm mağazaların toplam cirosu">
+            <div class="ciro-combined-head"><div><p>ELİT HOME · GENEL CİRO</p><h2>Tüm mağazaların toplam cirosu</h2></div><span id="ciroCombinedStoreCount"></span></div>
+            <div class="ciro-combined-grid">
+              <article><span>Seçili ay · <b id="ciroCombinedMonthLabel"></b></span><strong id="ciroCombinedMonth">—</strong></article>
+              <article><span>Seçili yıl · <b id="ciroCombinedYearLabel"></b></span><strong id="ciroCombinedYear">—</strong></article>
+              <article class="ciro-combined-all"><span>Tüm zamanlar</span><strong id="ciroCombinedAll">—</strong></article>
+            </div><p class="ciro-combined-note">Tüm mağazaların ciroları birlikte hesaplanır. Ay ve yıl seçimlerini aşağıdan değiştirebilirsiniz.</p>
+          </section>
+
           <div class="store-picker-row" id="ciroStorePickerRow">
             <label for="ciroStoreSelect">Mağaza seç</label>
             <select id="ciroStoreSelect"></select>
