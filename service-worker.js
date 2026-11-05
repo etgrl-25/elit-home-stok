@@ -6,7 +6,7 @@ const APP_SHELL = [
   "./js/app.js",
   "./js/weltew-stock.js",
   "./css/weltew-stock.css",
-  "./assets/weltew-logo.png",
+  "./icons/weltew-logo.png",
   "./js/firebase-config.js",
   "./manifest.json",
   "./icons/icon-192.png",
