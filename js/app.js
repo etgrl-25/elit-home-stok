@@ -9,6 +9,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
+import { createWeltewStockPanel } from "./weltew-stock.js";
+
 const EMAIL_SUFFIX = "@elithome.local";
 const PALETTE = [
   { c: "#D42B2B" }, // kırmızı
@@ -33,6 +35,8 @@ if (isConfigured) {
   auth = getAuth(app);
   db = getFirestore(app);
 }
+
+const weltewStock = createWeltewStockPanel({ auth, db });
 
 // ---------- DOM refs ----------
 const loginScreen = document.getElementById("loginScreen");
@@ -271,6 +275,7 @@ navItems.forEach(btn => {
 });
 
 const VIEW_TITLES = {
+  weltew: "Weltew Home Genel Stok",
   overview: "Genel Bakış",
   stores: "Mağazalar",
   search: "Tüm Ürünlerde Ara",
@@ -282,6 +287,10 @@ const VIEW_TITLES = {
 };
 
 function switchView(view) {
+  if (view === "weltew" && !weltewStock.allowed()) return;
+  document.getElementById("weltewView").style.display = view === "weltew" ? "block" : "none";
+  if (view === "weltew") weltewStock.open();
+  else weltewStock.close();
   if (view === "adminSettings" && !isAdmin) return; // yetkisiz erişim engeli
   currentView = view;
   navItems.forEach(b => b.classList.toggle("active", b.dataset.view === view));
@@ -310,6 +319,11 @@ if (isConfigured) {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       currentUid = user.uid;
+      weltewStock.setUser(user);
+      if (currentView === "weltew") {
+        if (weltewStock.allowed()) weltewStock.open();
+        else switchView("overview");
+      }
       loginScreen.style.display = "none";
       appScreen.style.display = "block";
       currentUserLabel.textContent = user.email.replace(EMAIL_SUFFIX, "");
@@ -329,6 +343,8 @@ if (isConfigured) {
 }
 
 function teardownListeners() {
+  weltewStock.destroy();
+  if (currentView === "weltew") switchView("overview");
   if (storesUnsub) storesUnsub();
   if (categoriesUnsub) categoriesUnsub();
   if (showroomUnsub) showroomUnsub();
