@@ -1,4 +1,4 @@
-const CACHE_NAME = "elit-home-stok-v7-weltew";
+const CACHE_NAME = "elit-home-stok-v8-elit-brand";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,7 +6,14 @@ const APP_SHELL = [
   "./js/app.js",
   "./js/weltew-stock.js",
   "./css/weltew-stock.css",
+  "./css/brand.css",
+  "./icons/elit-home-logo.png",
+  "./icons/elit-app-192.png",
+  "./icons/elit-app-512.png",
+  "./icons/elit-app-maskable.png",
+  "./icons/elit-app-apple.png",
   "./icons/weltew-logo.png",
+  "./icons/weltew-logo-white.png",
   "./js/firebase-config.js",
   "./manifest.json",
   "./icons/icon-192.png",

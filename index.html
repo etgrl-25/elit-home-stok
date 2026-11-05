@@ -7,19 +7,20 @@
 <meta name="description" content="Elit Home mağazaları için gerçek zamanlı, çoklu mağaza stok yönetim paneli." />
 
 <!-- PWA -->
-<link rel="manifest" href="manifest.json" />
-<meta name="theme-color" content="#0A0A0A" />
+<link rel="manifest" href="manifest.json?v=elit-brand-1" />
+<meta name="theme-color" content="#103e4d" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Elit Home" />
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-<link rel="icon" href="icons/icon-192.png" type="image/png" />
+<link rel="apple-touch-icon" href="icons/elit-app-apple.png" />
+<link rel="icon" href="icons/elit-app-192.png" type="image/png" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css" />
 <link rel="stylesheet" href="css/weltew-stock.css" />
+<link rel="stylesheet" href="css/brand.css" />
 </head>
 <body>
 
@@ -36,7 +37,7 @@
       </div>
       <div class="login-card">
         <div class="brand">
-          <div class="mark">Elit <span>Home</span></div>
+          <img class="brand-login-logo" src="icons/elit-home-logo.png" alt="Elit Home">
           <div class="tagline">Çoklu Mağaza · Tek Panel · Stok Takibi</div>
         </div>
 
@@ -67,7 +68,7 @@
 
       <aside id="sidebar" class="sidebar">
         <div class="sidebar-head">
-          <div class="brand-inline">Elit <span>Home</span></div>
+          <div class="brand-main"><img class="brand-sidebar-logo" src="icons/elit-home-logo.png" alt="Elit Home"><span>STOK YÖNETİMİ</span></div>
           <button id="sidebarClose" class="sidebar-close" aria-label="Menüyü kapat">✕</button>
         </div>
 
@@ -120,6 +121,7 @@
 
       <div class="main-area">
         <header class="topbar">
+          <img class="brand-topbar-logo" src="icons/elit-home-logo.png" alt="Elit Home">
           <button id="menuToggle" class="menu-toggle" aria-label="Menüyü aç">☰</button>
           <div>
             <div class="topbar-title" id="viewTitle">Genel Bakış</div>
