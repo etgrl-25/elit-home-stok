@@ -1,4 +1,4 @@
-const CACHE_NAME = "elit-home-stok-v10-ciro-totals";
+const CACHE_NAME = "elit-home-stok-v11-weltew-reset";
 const APP_SHELL = [
   "./",
   "./index.html",
