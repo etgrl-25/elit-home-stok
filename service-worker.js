@@ -1,4 +1,4 @@
-const CACHE_NAME = "elit-home-stok-v19-product-groups";
+const CACHE_NAME = "elit-home-stok-v20-chat-position";
 const APP_SHELL = [
   "./",
   "./index.html",
