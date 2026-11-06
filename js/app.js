@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
-import { createWeltewStockPanel } from "./weltew-stock.js?v=15";
+import { createWeltewStockPanel } from "./weltew-stock.js?v=16";
 
 const EMAIL_SUFFIX = "@elithome.local";
 const PALETTE = [

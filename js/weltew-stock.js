@@ -2,7 +2,7 @@ import { collection, doc, onSnapshot, runTransaction, serverTimestamp } from 'ht
 
 import {readInventoryFile, guessColumns, buildImportPlan, digest} from './weltew-import.js?v=12';
 
-import {createStockAssistant} from './stock-assistant.js?v=15';
+import {createStockAssistant} from './stock-assistant.js?v=16';
 
 export const WELTEW_OWNER_EMAIL = 'elit@elithome.local';
 export const canAccessWeltew = user => Boolean(user && user.email === WELTEW_OWNER_EMAIL);
@@ -44,7 +44,7 @@ export function createWeltewStockPanel({auth,db}) {
   const allowed=()=>canAccessWeltew(user)&&auth?.currentUser?.uid===user.uid&&canAccessWeltew(auth.currentUser);
   const requireOwner=()=>{if(!allowed()) throw Error('Bu bölüm yalnızca elit hesabına açıktır.');};
   const message=text=>{$('message').textContent=text;};
-  const assistant=createStockAssistant({view,getRows:()=>rows,allowed,isLoading:()=>loading});
+  const assistant=createStockAssistant({view,getRows:()=>rows,allowed,isLoading:()=>loading,onOpen:()=>openStock()});
   function clear() {assistant.clear();generation++;$('import-dialog').close();importFile=null;importPlan=null;$('zero-dialog').close();$('zero-form').reset();if(unsubscribe)unsubscribe();unsubscribe=null;rows=[];page=1;opened=false;editingId=null;loading=false;importing=false;$('import').disabled=false;$('search').value='';$('category').value='';$('warehouse').value='';$('status').value='';$('dialog').close();$('form').reset();$('form-message').textContent='';message('');render();}
   function options(key,field,label) {const el=$(key),prior=el.value;const vals=[...new Set(rows.map(p=>p[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr'));el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${escape(v)}">${escape(v)}</option>`).join('');el.value=vals.includes(prior)?prior:'';}
   function render(){
@@ -225,11 +225,12 @@ export function createWeltewStockPanel({auth,db}) {
       if(token===generation){$('dialog').close();message('Stok miktarı güncellendi.');}
     }catch(error){if(token===generation)$('form-message').textContent=error.code==='permission-denied'?'Bu işlem için veritabanı erişimi reddedildi.':error.message;}finally{$('save').disabled=false;}
   });
+  function openStock(){if(!allowed())return;opened=true;if(unsubscribe)return;const token=generation;loading=true;message('Stoklar yükleniyor…');render();unsubscribe=onSnapshot(collection(db,'weltewInventory','main','products'),snapshot=>{if(!allowed()||token!==generation)return;loading=false;rows=snapshot.docs.map(d=>({...d.data(),id:d.id,qty:Number(d.data().qty)||0,buy:Number(d.data().buy)||0,name:String(d.data().name||'')}));message(rows.length?'':'Stok dosyanızı aktararak başlayabilirsiniz.');render();},error=>{if(token!==generation)return;loading=false;rows=[];message(error.code==='permission-denied'?'Bu stoklar için erişim izni yok. Firebase kuralları kontrol edilmeli.':'Stoklar yüklenemedi. Bağlantınızı kontrol edin.');render();});}
   render();
   return {
-    setUser(next){clear();user=next;nav.style.display=canAccessWeltew(next)?'flex':'none';if(!canAccessWeltew(next))view.style.display='none';},
+    setUser(next){clear();user=next;assistant.setVisible(canAccessWeltew(next));nav.style.display=canAccessWeltew(next)?'flex':'none';if(!canAccessWeltew(next))view.style.display='none';},
     allowed,
-    open(){if(!allowed())return;opened=true;if(unsubscribe)return;const token=generation;loading=true;message('Stoklar yükleniyor…');render();unsubscribe=onSnapshot(collection(db,'weltewInventory','main','products'),snapshot=>{if(!allowed()||token!==generation)return;loading=false;rows=snapshot.docs.map(d=>({...d.data(),id:d.id,qty:Number(d.data().qty)||0,buy:Number(d.data().buy)||0,name:String(d.data().name||'')}));message(rows.length?'':'Stok dosyanızı aktararak başlayabilirsiniz.');render();},error=>{if(token!==generation)return;loading=false;rows=[];message(error.code==='permission-denied'?'Bu stoklar için erişim izni yok. Firebase kuralları kontrol edilmeli.':'Stoklar yüklenemedi. Bağlantınızı kontrol edin.');render();});},
+    open:openStock,
     close(){opened=false;},
     destroy(){clear();user=null;nav.style.display='none';view.style.display='none';}
   };

@@ -31,16 +31,19 @@ export function answerStockQuestion(question, products) {
   return `${prefix||'Eşleşen stoklar'}: ${number(found.length)} kayıt, toplam ${number(qty)} adet.\n`+sorted.slice(0,10).map(p=>`${p.name} (${p.sku}) · ${p.warehouse||'Depo belirtilmemiş'}: ${number(Number(p.qty)||0)} adet${costly?' · '+money(Number(p.buy)||0)+'/adet':''}`).join('\n')+(found.length>10?'\nİlk 10 kayıt gösterildi. Ürün adı veya depo ekleyerek daraltabilirsin.':'');
 }
 
-export function createStockAssistant({view,getRows,allowed,isLoading}) {
-  const button=document.createElement('button');button.type='button';button.className='ws-primary';button.textContent='✦ Stok asistanı';const banner=document.createElement('section');banner.className='ws-assistant-banner';const intro=document.createElement('div');const title=document.createElement('strong');title.textContent='Stok asistanı burada';const hint=document.createElement('p');hint.textContent='Ürün adını yaz, adet ve maliyetini hemen öğren. Örnek: Kaç koltuk var?';intro.append(title,hint);banner.append(intro,button);view.querySelector('.ws-welcome').after(banner);
-  const dialog=document.createElement('dialog');dialog.className='ws-dialog ws-assistant';
+export function createStockAssistant({view,getRows,allowed,isLoading,onOpen=()=>{}}) {
+  const root=document.createElement('div');root.className='ws-chat-root';root.hidden=true;document.body.append(root);
+  const button=document.createElement('button');button.type='button';button.className='ws-primary ws-chat-launcher';button.textContent='✦ Asistan';button.setAttribute('aria-label','Stok asistanıyla sohbet et');button.setAttribute('aria-expanded','false');button.setAttribute('aria-controls','ws-floating-chat');root.append(button);
+  const dialog=document.createElement('dialog');dialog.className='ws-dialog ws-assistant ws-chat-window';dialog.id='ws-floating-chat';dialog.setAttribute('aria-label','Stok asistanı sohbeti');
   dialog.innerHTML='<div class="ws-assistant-head"><h2>Hızlı stok asistanı</h2><button type="button" class="ws-button" data-sa="close" aria-label="Asistanı kapat">Kapat</button></div><p>Deneme · Stok verileriyle anında yanıt. Genel sohbet yapmaz, stokları değiştirmez. Tüm Weltew depolarını kapsar; sayfa filtrelerini kullanmaz.</p><div class="ws-assistant-suggestions"><button type="button" class="ws-button">Genel stok özeti</button><button type="button" class="ws-button">Toplam stok maliyeti</button><button type="button" class="ws-button">Tükenen ürünler</button><button type="button" class="ws-button">Stoku azalan ürünler</button></div><div class="ws-assistant-log" data-sa="log" role="log" aria-live="polite"></div><form data-sa="form"><label>Stok sorusu<input data-sa="input" maxlength="300" required placeholder="Örn. Kaç koltuk var?" autocomplete="off"></label><button class="ws-primary" type="submit">Sor</button></form><small data-sa="timing"></small>';
-  view.append(dialog);const $=key=>dialog.querySelector(`[data-sa="${key}"]`);
+  root.append(dialog);const $=key=>dialog.querySelector(`[data-sa="${key}"]`);
   function add(text,kind){const bubble=document.createElement('div');bubble.className='ws-assistant-bubble '+kind;bubble.textContent=text;$('log').append(bubble);while($('log').children.length>30)$('log').firstElementChild.remove();$('log').scrollTop=$('log').scrollHeight;}
   function ask(question){if(!allowed()){dialog.close();return;}add(question,'question');const start=performance.now();add(isLoading()?'Stoklar henüz yükleniyor. Yüklendikten sonra tekrar sor.':answerStockQuestion(question,getRows()),'answer');$('timing').textContent=`Yanıt hesabı: ${Math.max(1,Math.round(performance.now()-start))} ms · cihazda işlendi`;}
-  button.addEventListener('click',()=>{if(!allowed())return;dialog.showModal();$('input').focus();});
-  $('close').addEventListener('click',()=>dialog.close());
+  function close(){dialog.close();button.setAttribute('aria-expanded','false');}
+  button.addEventListener('click',()=>{if(!allowed())return;if(dialog.open){close();return;}onOpen();dialog.show();button.setAttribute('aria-expanded','true');$('input').focus();});
+  dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();button.focus();}});
+  $('close').addEventListener('click',()=>{close();button.focus();});
   $('form').addEventListener('submit',event=>{event.preventDefault();const question=$('input').value.trim();if(question){ask(question);$('input').value='';}});
   dialog.querySelectorAll('.ws-assistant-suggestions button').forEach(chip=>chip.addEventListener('click',()=>ask(chip.textContent)));
-  return {clear(){dialog.close();$('log').textContent='';$('input').value='';$('timing').textContent='';}};
+  return {setVisible(visible){root.hidden=!visible;if(!visible)close();},clear(){root.hidden=true;close();$('log').textContent='';$('input').value='';$('timing').textContent='';}};
 }
