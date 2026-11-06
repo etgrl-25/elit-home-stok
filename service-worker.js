@@ -1,12 +1,12 @@
-const CACHE_NAME = "elit-home-stok-v18-search";
+const CACHE_NAME = "elit-home-stok-v19-product-groups";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css",
   "./js/app.js",
   "./js/weltew-stock.js",
-  "./js/inventory-search.js?v=18",
-  "./js/stock-assistant.js?v=18",
+  "./js/inventory-search.js?v=19",
+  "./js/stock-assistant.js?v=19",
   "./js/weltew-import.js?v=12",
   "./css/weltew-stock.css",
   "./css/brand.css",

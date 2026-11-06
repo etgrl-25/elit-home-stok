@@ -1,4 +1,4 @@
-import {matchesInventoryQuery} from './inventory-search.js?v=18';
+import {matchesInventoryQuery} from './inventory-search.js?v=19';
 const fold = value => String(value??'').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'i');
 const number = value => new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2}).format(value);
 const money = value => new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(value);
