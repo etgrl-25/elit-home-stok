@@ -1,10 +1,11 @@
-const CACHE_NAME = "elit-home-stok-v11-weltew-reset";
+const CACHE_NAME = "elit-home-stok-v12-excel-import";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css",
   "./js/app.js",
   "./js/weltew-stock.js",
+  "./js/weltew-import.js?v=12",
   "./css/weltew-stock.css",
   "./css/brand.css",
   "./icons/elit-home-logo.png",

@@ -236,3 +236,6 @@ Mağaza eklemek/silmek/yeniden adlandırmak artık uygulama içinden
 (sol menüdeki `+` ve ✎ / ✕ ikonlarından) yapılıyor, kodda bir dizi
 düzenlemenize gerek yok. Bir mağaza silindiğinde, içindeki tüm
 ürünler de otomatik olarak silinir.
+
+### Weltew Excel aktarımı
+Weltew Home Genel Stok içindeki Excel / Toplu stok ekle düğmesi XLSX, XLS, CSV ve eski JSON dosyalarını kabul eder. Sayfa ve sütun eşleştirmesi seçilir; önizleme onaylanmadan yazılmaz. Gelen adetleri ekleme ve mevcut miktarları güncelleme seçenekleri vardır. Mevcut ürünlerin maliyet ve kimlik bilgileri korunur. Belirsiz ürün/depo eşleşmeleri engellenir. Aynı dosyanın ekleme modunda tekrar aktarılması çift stok oluşturmaz. Her satır stok hareketine kaydedilir; yarıda kalan ekleme aynı dosyayla devam ettirilebilir. Aynı içerikli farklı bir teslimat için yeni teslimat dosyası oluşturulmalıdır.
