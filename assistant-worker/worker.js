@@ -7,7 +7,7 @@ const utf8=new TextEncoder();
 function decode(segment){const s=segment.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(atob(s.padEnd(Math.ceil(s.length/4)*4,'=')),c=>c.charCodeAt(0));}
 function cors(){return {'access-control-allow-origin':ORIGIN,'access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'authorization, content-type','vary':'Origin','cache-control':'no-store'};}
 function json(error,status){return Response.json({error},{status,headers:cors()});}
-export async function verifyUser(token,project){
+async function verifyUser(token,project){
   if(typeof token!=='string'||token.length>12000)throw Error('invalid');
   const parts=token.split('.');if(parts.length!==3)throw Error('invalid');
   const header=JSON.parse(new TextDecoder().decode(decode(parts[0]))),claims=JSON.parse(new TextDecoder().decode(decode(parts[1]))),now=Date.now()/1000;
@@ -22,7 +22,7 @@ export async function verifyUser(token,project){
   if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode(parts[2]),utf8.encode(parts[0]+'.'+parts[1])))throw Error('invalid');
   return claims.sub;
 }
-export function validateBody(body){
+function validateBody(body){
   if(!Array.isArray(body.messages)||!body.messages.length||body.messages.length>16)throw Error('Son 16 mesaja kadar gönderilebilir.');
   let size=0;const messages=body.messages.map(m=>{
     if(!['user','assistant'].includes(m.role)||typeof m.content!=='string'||!m.content.trim()||m.content.length>6000)throw Error('Geçersiz mesaj.');
