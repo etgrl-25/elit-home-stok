@@ -1,3 +1,4 @@
+import {streamChat,trimChatHistory,normalizeAssistantEndpoint} from './ai-chat.js?v=21';
 import {matchesInventoryQuery} from './inventory-search.js?v=19';
 const fold = value => String(value??'').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'i');
 const number = value => new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2}).format(value);
@@ -32,20 +33,46 @@ export function answerStockQuestion(question, products) {
   return `${prefix||'Eşleşen stoklar'}: ${number(found.length)} kayıt, toplam ${number(qty)} adet.\n`+sorted.slice(0,10).map(p=>`${p.name} (${p.sku}) · ${p.warehouse||'Depo belirtilmemiş'}: ${number(Number(p.qty)||0)} adet${costly?' · '+money(Number(p.buy)||0)+'/adet':''}`).join('\n')+(found.length>10?'\nİlk 10 kayıt gösterildi. Ürün adı veya depo ekleyerek daraltabilirsin.':'');
 }
 
-export function createStockAssistant({view,getRows,allowed,isLoading,onOpen=()=>{}}) {
+export function createStockAssistant({view,getRows,allowed,isLoading,onOpen=()=>{},getToken=async()=>{throw Error('Oturum bulunamadı.');}}) {
   const root=document.createElement('div');root.className='ws-chat-root';root.hidden=true;document.body.append(root);
-  const button=document.createElement('button');button.type='button';button.className='ws-primary ws-chat-launcher';button.textContent='✦ Asistan';button.setAttribute('aria-label','Stok asistanıyla sohbet et');button.setAttribute('aria-expanded','false');button.setAttribute('aria-controls','ws-floating-chat');root.append(button);
-  const dialog=document.createElement('dialog');dialog.className='ws-dialog ws-assistant ws-chat-window';dialog.id='ws-floating-chat';dialog.setAttribute('aria-label','Stok asistanı sohbeti');
-  dialog.innerHTML='<div class="ws-assistant-head"><h2>Hızlı stok asistanı</h2><button type="button" class="ws-button" data-sa="clear">Konuşmaları temizle</button><button type="button" class="ws-button" data-sa="close" aria-label="Asistanı kapat">Kapat</button></div><p>Deneme · Stok verileriyle anında yanıt. Genel sohbet yapmaz, stokları değiştirmez. Tüm Weltew depolarını kapsar; sayfa filtrelerini kullanmaz.</p><div class="ws-assistant-suggestions"><button type="button" class="ws-button">Genel stok özeti</button><button type="button" class="ws-button">Toplam stok maliyeti</button><button type="button" class="ws-button">Tükenen ürünler</button><button type="button" class="ws-button">Stoku azalan ürünler</button></div><div class="ws-assistant-log" data-sa="log" role="log" aria-live="polite"></div><form data-sa="form"><label>Stok sorusu<input data-sa="input" maxlength="300" required placeholder="Örn. Kaç koltuk var?" autocomplete="off"></label><button class="ws-primary" type="submit">Sor</button></form><small data-sa="timing"></small>';
+  const button=document.createElement('button');button.type='button';button.className='ws-primary ws-chat-launcher';button.textContent='✦ Asistan';button.setAttribute('aria-label','Asistanla sohbet et');button.setAttribute('aria-expanded','false');button.setAttribute('aria-controls','ws-floating-chat');root.append(button);
+  const dialog=document.createElement('dialog');dialog.className='ws-dialog ws-assistant ws-chat-window';dialog.id='ws-floating-chat';dialog.setAttribute('aria-label','Elit Home asistanı');
+  dialog.innerHTML='<div class="ws-assistant-head"><h2>Elit Home Asistanı</h2><button type="button" class="ws-button" data-sa="clear">Konuşmaları temizle</button><button type="button" class="ws-button" data-sa="close">Kapat</button></div><p data-sa="status"></p><label>Yanıt türü<select data-sa="mode"><option value="ai">Yapay zekâ · Genel sohbet</option><option value="local">Hızlı stok sorgusu</option></select></label><label class="ws-chat-share"><input data-sa="share" type="checkbox"> Stok özetini Groq ile paylaş ve yanıta dahil et</label><details data-sa="settings"><summary>Yapay zekâ bağlantısı</summary><p>Cloudflare’daki asistan adresini gir. API anahtarını buraya yazma. Bu ayar yalnızca bu tarayıcıda saklanır.</p><label>Asistan adresi<input data-sa="endpoint" type="url" placeholder="https://elit-home-assistant.…workers.dev" autocomplete="off"></label><button class="ws-button" data-sa="connect" type="button">Bağlantıyı kaydet</button><p data-sa="connection-message" role="status"></p></details><div class="ws-assistant-suggestions"><button type="button" class="ws-button">Genel stok özeti</button><button type="button" class="ws-button">Toplam stok maliyeti</button><button type="button" class="ws-button">Tükenen ürünler</button></div><div class="ws-assistant-log" data-sa="log" role="log" aria-live="polite"></div><form data-sa="form"><label>Mesajın<input data-sa="input" maxlength="3000" required placeholder="Bir şey sor…" autocomplete="off"></label><button class="ws-primary" type="submit" data-sa="send">Gönder</button><button class="ws-button" type="button" data-sa="stop" hidden>Durdur</button></form><small data-sa="timing"></small>';
   root.append(dialog);const $=key=>dialog.querySelector(`[data-sa="${key}"]`);
-  function add(text,kind){const bubble=document.createElement('div');bubble.className='ws-assistant-bubble '+kind;bubble.textContent=text;$('log').append(bubble);while($('log').children.length>30)$('log').firstElementChild.remove();$('log').scrollTop=$('log').scrollHeight;}
-  function ask(question){if(!allowed()){dialog.close();return;}add(question,'question');const start=performance.now();add(isLoading()?'Stoklar henüz yükleniyor. Yüklendikten sonra tekrar sor.':answerStockQuestion(question,getRows()),'answer');$('timing').textContent=`Yanıt hesabı: ${Math.max(1,Math.round(performance.now()-start))} ms · cihazda işlendi`;}
+  let endpoint='https://elit-home-assistant.ertugrulerturann.workers.dev',history=[],controller=null,busy=false,epoch=0;
+  try{endpoint=normalizeAssistantEndpoint(localStorage.getItem('elit-home-assistant-url')||endpoint);}catch{}
+  $('endpoint').value=endpoint;$('mode').value=endpoint?'ai':'local';
+  function status(){const ai=$('mode').value==='ai';$('status').textContent=ai?(endpoint?'Groq sohbeti · Mesaj gönderince bağlantı kontrol edilir. Stokları değiştirmez.':'Genel sohbet için sunucu bağlantısı bekleniyor. Yapay zekâ bağlantısı bölümünden asistan adresini kaydet.'):'Hızlı stok modu · Yalnızca mevcut Weltew stoklarından hesaplar, genel sohbet yapmaz.';$('share').disabled=!ai;}
+  function add(text,kind){const bubble=document.createElement('div');bubble.className='ws-assistant-bubble '+kind;bubble.textContent=text;$('log').append(bubble);while($('log').children.length>32)$('log').firstElementChild.remove();$('log').scrollTop=$('log').scrollHeight;return bubble;}
+  function setBusy(value){busy=value;$('send').disabled=value;$('stop').hidden=!value;$('mode').disabled=value;$('share').disabled=value||$('mode').value!=='ai';$('connect').disabled=value;}
+  function clearTranscript(){epoch++;controller?.abort();controller=null;history=[];setBusy(false);$('log').textContent='';$('input').value='';$('timing').textContent='';}
+  async function ask(question){
+    if(!allowed()){close();return;}if(busy)return;
+    const ai=$('mode').value==='ai';if(ai&&!endpoint){$('settings').open=true;$('connection-message').textContent='Önce Cloudflare asistan adresini kaydet.';$('endpoint').focus();return;}
+    add(question,'question');const bubble=add(ai?'Yanıt hazırlanıyor…':'Hesaplanıyor…','answer');const start=performance.now(),token=epoch;
+    if(!ai){bubble.textContent=isLoading()?'Stoklar yükleniyor. Biraz sonra tekrar sor.':answerStockQuestion(question,getRows());$('timing').textContent=`Cihazda hesaplandı: ${Math.max(1,Math.round(performance.now()-start))} ms`;return;}
+    if($('share').checked&&isLoading()){bubble.textContent='Stok verileri henüz yükleniyor. Yükleme bitince tekrar sor.';return;}
+    setBusy(true);const aborter=new AbortController();controller=aborter;const timer=setTimeout(()=>aborter.abort(),65000);
+    try{
+      const authToken=await getToken();if(token!==epoch||!allowed())return;
+      let stockContext='';
+      if($('share').checked){const rows=getRows();stockContext=JSON.stringify({scope:'Weltew Home genel stok, tüm depolar',records:rows.length,totalQuantity:rows.reduce((s,p)=>s+(Number(p.qty)||0),0),totalCost:rows.reduce((s,p)=>s+(Number(p.qty)||0)*(Number(p.buy)||0),0),query:question,localQueryResult:answerStockQuestion(question,rows),detailLimit:'Sorgu ayrıntıları en fazla 10 kayıt içerir; liste tam envanter değildir.'}).slice(0,6500);}
+      const messages=trimChatHistory([...history,{role:'user',content:question}]);let first=true;
+      const answer=await streamChat({endpoint,token:authToken,messages,stockContext,signal:aborter.signal,onText:text=>{if(token!==epoch||!allowed())return;bubble.textContent=text;$('log').scrollTop=$('log').scrollHeight;if(first){first=false;$('timing').textContent=`İlk yanıt: ${((performance.now()-start)/1000).toFixed(1)} sn · Groq`;}}});
+      if(token===epoch&&allowed()){history=trimChatHistory([...messages,{role:'assistant',content:answer}]);$('timing').textContent+=` · Tamamlandı`;} 
+    }catch(error){if(token===epoch){bubble.textContent+=(bubble.textContent==='Yanıt hazırlanıyor…'?'':'\n\n');if(bubble.textContent.startsWith('Yanıt hazırlanıyor…'))bubble.textContent='';bubble.textContent+=aborter.signal.aborted?'Yanıt durduruldu veya zaman aşımına uğradı.':error.message;$('timing').textContent='Yanıt tamamlanmadı.';}}
+    finally{clearTimeout(timer);if(token===epoch){controller=null;setBusy(false);}}
+  }
   function close(){dialog.close();button.setAttribute('aria-expanded','false');}
   button.addEventListener('click',()=>{if(!allowed())return;if(dialog.open){close();return;}onOpen();dialog.show();button.setAttribute('aria-expanded','true');$('input').focus();});
   dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();button.focus();}});
-  $('clear').addEventListener('click',()=>{$('log').textContent='';$('input').value='';$('timing').textContent='';$('input').focus();});
+  $('clear').addEventListener('click',()=>{clearTranscript();$('input').focus();});
+  $('stop').addEventListener('click',()=>controller?.abort());
+  $('mode').addEventListener('change',status);
+  $('connect').addEventListener('click',()=>{try{endpoint=normalizeAssistantEndpoint($('endpoint').value.trim());localStorage.setItem('elit-home-assistant-url',endpoint);$('mode').value='ai';$('connection-message').textContent='Adres kaydedildi. Bir mesaj göndererek bağlantıyı deneyebilirsin.';status();}catch(error){$('connection-message').textContent=error.message;}});
   $('close').addEventListener('click',()=>{close();button.focus();});
-  $('form').addEventListener('submit',event=>{event.preventDefault();const question=$('input').value.trim();if(question){ask(question);$('input').value='';}});
-  dialog.querySelectorAll('.ws-assistant-suggestions button').forEach(chip=>chip.addEventListener('click',()=>ask(chip.textContent)));
-  return {setVisible(visible){root.hidden=!visible;if(!visible)close();},clear(){root.hidden=true;close();$('log').textContent='';$('input').value='';$('timing').textContent='';}};
+  $('form').addEventListener('submit',event=>{event.preventDefault();const question=$('input').value.trim();if(question&&!busy){ask(question);$('input').value='';}});
+  dialog.querySelectorAll('.ws-assistant-suggestions button').forEach(chip=>chip.addEventListener('click',()=>{if(!busy){$('mode').value='local';status();ask(chip.textContent);}}));
+  status();
+  return {setVisible(visible){root.hidden=!visible;if(!visible){clearTranscript();close();}},clear(){root.hidden=true;clearTranscript();close();}};
 }

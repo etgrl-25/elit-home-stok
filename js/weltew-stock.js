@@ -2,7 +2,7 @@ import { collection, doc, onSnapshot, runTransaction, serverTimestamp } from 'ht
 
 import {readInventoryFile, guessColumns, buildImportPlan, digest} from './weltew-import.js?v=12';
 
-import {createStockAssistant} from './stock-assistant.js?v=19';
+import {createStockAssistant} from './stock-assistant.js?v=21';
 
 import {matchesInventoryQuery,matchesInventoryCategory,getInventoryGroups} from './inventory-search.js?v=19';
 
@@ -46,7 +46,7 @@ export function createWeltewStockPanel({auth,db}) {
   const allowed=()=>canAccessWeltew(user)&&auth?.currentUser?.uid===user.uid&&canAccessWeltew(auth.currentUser);
   const requireOwner=()=>{if(!allowed()) throw Error('Bu bölüm yalnızca elit hesabına açıktır.');};
   const message=text=>{$('message').textContent=text;};
-  const assistant=createStockAssistant({view,getRows:()=>rows,allowed,isLoading:()=>loading,onOpen:()=>openStock()});
+  const assistant=createStockAssistant({view,getRows:()=>rows,allowed,isLoading:()=>loading,onOpen:()=>openStock(),getToken:()=>auth.currentUser.getIdToken()});
   function clear() {assistant.clear();generation++;$('import-dialog').close();importFile=null;importPlan=null;$('zero-dialog').close();$('zero-form').reset();if(unsubscribe)unsubscribe();unsubscribe=null;rows=[];page=1;opened=false;editingId=null;loading=false;importing=false;$('import').disabled=false;$('search').value='';$('category').value='';$('warehouse').value='';$('status').value='';$('dialog').close();$('form').reset();$('form-message').textContent='';message('');render();}
   function options(key,field,label) {const el=$(key),prior=el.value;const vals=[...new Set(rows.flatMap(p=>key==='category'?[p.category,...getInventoryGroups(p)]:[p[field]]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr'));el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${escape(v)}">${escape(v)}</option>`).join('');el.value=vals.includes(prior)?prior:'';}
   function render(){

@@ -1,0 +1,14 @@
+name = "elit-home-assistant"
+main = "worker.js"
+compatibility_date = "2026-11-06"
+
+[vars]
+FIREBASE_PROJECT_ID = "elithome-67b92"
+
+[[ratelimits]]
+name = "ASSISTANT_RATE_LIMITER"
+namespace_id = "2026110621"
+simple = { limit = 10, period = 60 }
+
+# Add GROQ_API_KEY as a Cloudflare Secret, not a variable or a tracked file.
+
