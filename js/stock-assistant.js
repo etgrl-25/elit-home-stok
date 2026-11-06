@@ -1,3 +1,4 @@
+import {matchesInventoryQuery} from './inventory-search.js?v=18';
 const fold = value => String(value??'').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'i');
 const number = value => new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2}).format(value);
 const money = value => new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(value);
@@ -16,7 +17,7 @@ export function answerStockQuestion(question, products) {
   const stop=new Set('kac ne nedir kadar adet tane var mi mu stok stokta stogu stoku stoklar stoklari urun urunler urunleri urunun bana goster gosterir misin hangi olan toplam maliyet maliyeti maliyetli alis fiyat fiyati deger degeri tutar tutari depo depoda depolar depolari depolarda ambarlar dagilimi nerede bul liste listele listesi durumu genel ozet ozeti envanter hangileri neler urunlerde urunde bulunuyor bulunur kac tane ve ile en pahali yuksek buyuk tukenen bitmis stoksuz sifir azalan az dusuk kritik altinda altindaki kalan daha lutfen hepsi hepsini'.split(' '));
   const terms=q.split(/\s+/).filter(t=>t&&!stop.has(t)&&!/^\d+(?:[.,]\d+)?$/.test(t));
   const matchesTerm=(p,t)=>{const values=fold([p.name,p.sku,p.barcode,p.category,p.warehouse,p.branch].join(' '));return values.includes(t)||(/(?:lar|ler)$/.test(t)&&values.includes(t.slice(0,-3)));};
-  let found=products.filter(p=>terms.every(t=>matchesTerm(p,t)));
+  let found=products.filter(p=>matchesInventoryQuery(p,terms.join(' ')));
   if(!terms.length&&!empty&&!low&&!cost&&!depots&&!total&&!/\b(kac|adet|liste|listele)\b/.test(q))return 'Bunu bu denemede yorumlayamıyorum. Şunları deneyebilirsin: “Kaç koltuk var?”, “Toplam stok maliyeti”, “Tükenen ürünler”, “Stoku azalan ürünler” veya bir ürün kodu.';
   if(!found.length)return 'Bu sorudaki ürün/depo ifadesiyle eşleşen kayıt bulamadım. Ürün adını, kodunu veya depo adını daha kısa yazmayı dene.';
   let prefix='';
