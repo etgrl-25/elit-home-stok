@@ -2,7 +2,7 @@ import { collection, doc, onSnapshot, runTransaction, serverTimestamp } from 'ht
 
 import {readInventoryFile, guessColumns, buildImportPlan, digest} from './weltew-import.js?v=12';
 
-import {createStockAssistant} from './stock-assistant.js?v=16';
+import {createStockAssistant} from './stock-assistant.js?v=17';
 
 export const WELTEW_OWNER_EMAIL = 'elit@elithome.local';
 export const canAccessWeltew = user => Boolean(user && user.email === WELTEW_OWNER_EMAIL);
