@@ -1,11 +1,11 @@
-const CACHE_NAME = "elit-home-stok-v14-assistant";
+const CACHE_NAME = "elit-home-stok-v15-vat-undo";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css",
   "./js/app.js",
   "./js/weltew-stock.js",
-  "./js/stock-assistant.js?v=14",
+  "./js/stock-assistant.js?v=15",
   "./js/weltew-import.js?v=12",
   "./css/weltew-stock.css",
   "./css/brand.css",
@@ -68,7 +68,7 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => cached);
-      return cached || network;
+      return network;
     })
   );
 });

@@ -2,7 +2,7 @@ import { collection, doc, onSnapshot, runTransaction, serverTimestamp } from 'ht
 
 import {readInventoryFile, guessColumns, buildImportPlan, digest} from './weltew-import.js?v=12';
 
-import {createStockAssistant} from './stock-assistant.js?v=14';
+import {createStockAssistant} from './stock-assistant.js?v=15';
 
 export const WELTEW_OWNER_EMAIL = 'elit@elithome.local';
 export const canAccessWeltew = user => Boolean(user && user.email === WELTEW_OWNER_EMAIL);
@@ -31,7 +31,7 @@ export function createWeltewStockPanel({auth,db}) {
   const view=document.getElementById('weltewView'), nav=document.getElementById('weltewNavBtn');
   view.innerHTML=`<div class="ws-welcome"><div><p class="ws-eyebrow">ELİT HOME · ÖZEL ENVANTER</p><h1>Weltew Home Genel Stok</h1><p>Ürünlerinizi bulun, depo stoklarınızı tek yerde takip edin.</p></div><div class="brand-partner brand-partner-white"><span class="brand-partner-label">MARKA</span><img src="icons/weltew-logo-white.png" alt="Weltew Home"></div></div>
   <div class="ws-stats"><article><span>Ürün çeşidi</span><strong data-ws="count">0</strong></article><article><span>Toplam miktar</span><strong data-ws="quantity">0</strong></article><article><span>Stok maliyeti</span><strong data-ws="value">₺0</strong></article><article><span>Tükenen ürünler</span><strong data-ws="empty-count">0</strong></article></div>
-  <section class="ws-panel"><div class="ws-heading"><div><h2>Ürün envanteri</h2><p>Bu bölüm yalnızca elit hesabına özeldir.</p></div><button data-ws="vat" class="ws-button" type="button">%10 KDV ekle</button><button data-ws="zero-all" class="ws-button ws-danger" type="button">Hepsini kaldır · Stoğu sıfırla</button><button data-ws="import" class="ws-primary">↥ Excel / Toplu stok ekle</button><input data-ws="file" type="file" accept=".xlsx,.xls,.csv,.json" hidden></div>
+  <section class="ws-panel"><div class="ws-heading"><div><h2>Ürün envanteri</h2><p>Bu bölüm yalnızca elit hesabına özeldir.</p></div><button data-ws="vat-undo" class="ws-button" type="button">KDV’yi geri al</button><button data-ws="vat" class="ws-button" type="button">%10 KDV ekle</button><button data-ws="zero-all" class="ws-button ws-danger" type="button">Hepsini kaldır · Stoğu sıfırla</button><button data-ws="import" class="ws-primary">↥ Excel / Toplu stok ekle</button><input data-ws="file" type="file" accept=".xlsx,.xls,.csv,.json" hidden></div>
   <div class="ws-filters"><input data-ws="search" type="search" placeholder="Ürün adı, kod veya barkod ara…" aria-label="Weltew ürünlerinde ara"><select data-ws="category" aria-label="Kategori"><option value="">Tüm kategoriler</option></select><select data-ws="warehouse" aria-label="Depo"><option value="">Tüm depolar</option></select><select data-ws="status" aria-label="Stok durumu"><option value="">Tüm stoklar</option><option value="available">Stokta</option><option value="empty">Tükenen</option></select><button data-ws="reset" class="ws-button">Temizle</button></div>
   <div data-ws="message" class="ws-message" role="status"></div><div class="ws-table-wrap"><table class="ws-table"><thead><tr><th>ÜRÜN / KOD</th><th>KATEGORİ / DEPO</th><th>MİKTAR</th><th>ALIŞ MALİYETİ</th><th>DURUM</th><th>İŞLEM</th></tr></thead><tbody data-ws="rows"></tbody></table></div><div data-ws="empty" class="ws-empty" hidden>Ürün bulunamadı. Aramayı veya filtreleri değiştirin.</div><div class="ws-footer"><span data-ws="summary"></span><div><button data-ws="prev" class="ws-button" aria-label="Önceki sayfa">←</button><span data-ws="page"></span><button data-ws="next" class="ws-button" aria-label="Sonraki sayfa">→</button></div></div></section>
   <dialog data-ws="dialog" class="ws-dialog"><form data-ws="form"><h2>Stok miktarını güncelle</h2><p data-ws="product-name"></p><label>Yeni miktar<input data-ws="qty" type="number" min="0" step="any" required></label><label>Açıklama<input data-ws="note" maxlength="300" placeholder="Sayım, giriş veya çıkış açıklaması"></label><p data-ws="form-message" role="status"></p><div class="ws-dialog-actions"><button type="button" data-ws="cancel" class="ws-button">Vazgeç</button><button type="submit" data-ws="save" class="ws-primary">Kaydet</button></div></form></dialog>
@@ -58,14 +58,14 @@ export function createWeltewStockPanel({auth,db}) {
   }
   ['search','category','warehouse','status'].forEach(key=>$(key).addEventListener(key==='search'?'input':'change',()=>{page=1;render();}));
   $('reset').addEventListener('click',()=>{['search','category','warehouse','status'].forEach(k=>$(k).value='');page=1;render();});
-  $('vat').addEventListener('click',async()=>{
+  async function updateVat(undo){
     if(!allowed()||loading||zeroing||importing||addingVat)return;
-    const token=generation,targets=rows.filter(p=>p.buy>0&&p.vatRate!==0.1).map(p=>p.id);let completed=0;
-    if(!targets.length){message('KDV eklenecek ürün yok. Maliyeti 0 olan veya %10 KDV eklenmiş ürünler atlanır.');return;}
-    if(!confirm(num(targets.length)+' ürünün alış maliyetine %10 KDV eklenecek (1.000 TL → 1.100 TL). Tüm depolar ve filtre dışında kalan ürünler de kapsanır. Ürün adetleri değişmez. Daha önce eklenenlere tekrar uygulanmaz. Onaylıyor musunuz?'))return;
+    const token=generation,targets=rows.filter(p=>undo?p.vatRate===0.1:p.buy>0&&p.vatRate!==0.1).map(p=>p.id);let completed=0;
+    if(!targets.length){message(undo?'Geri alınacak %10 KDV kaydı yok.':'KDV eklenecek ürün yok. Maliyeti 0 olan veya %10 KDV eklenmiş ürünler atlanır.');return;}
+    if(!confirm(undo?num(targets.length)+' ürünün KDV işlemi geri alınacak ve KDV öncesi kayıtlı alış maliyetleri geri getirilecek. Adetler değişmez. Onaylıyor musunuz?':num(targets.length)+' ürünün alış maliyetine %10 KDV eklenecek (1.000 TL → 1.100 TL). Tüm depolar ve filtre dışında kalan ürünler de kapsanır. Ürün adetleri değişmez. Daha önce eklenenlere tekrar uygulanmaz. Onaylıyor musunuz?'))return;
     try{
       requireOwner();addingVat=true;invalidateImport();
-      for(const key of ['vat','zero-all','import','save','import-apply'])$(key).disabled=true;
+      for(const key of ['vat','vat-undo','zero-all','import','save','import-apply'])$(key).disabled=true;
       for(let offset=0;offset<targets.length;offset+=40){
         requireOwner();if(token!==generation)throw Error('Oturum değişti. İşlem durduruldu.');
         const ids=targets.slice(offset,offset+40);
@@ -76,19 +76,22 @@ export function createWeltewStockPanel({auth,db}) {
           requireOwner();if(token!==generation)throw Error('Oturum değişti.');let count=0;
           snapshots.forEach((snap,i)=>{
             if(!snap.exists())return;const product=snap.data(),before=Number(product.buy)||0;
-            if(before<=0||product.vatRate===0.1)return;
-            const after=Math.round((before*1.1+Number.EPSILON)*100)/100;
+            if(undo?product.vatRate!==0.1:before<=0||product.vatRate===0.1)return;
+            if(undo&&(!Number.isFinite(product.buyBeforeVat)||product.buyBeforeVat<0))throw Error('KDV öncesi maliyet kaydı eksik. Ürün maliyeti değiştirilmedi.');
+            const after=undo?product.buyBeforeVat:Math.round((before*1.1+Number.EPSILON)*100)/100;
             if(!Number.isFinite(after))throw Error('Ürün maliyeti sınırı aşıldı.');
-            transaction.update(refs[i],{buy:after,buyBeforeVat:before,vatRate:0.1,vatAppliedAt:serverTimestamp(),updatedAt:serverTimestamp()});
-            transaction.set(doc(collection(db,'weltewInventory','main','movements')),{productId:ids[i],before:Number(product.qty)||0,after:Number(product.qty)||0,buyBefore:before,buyAfter:after,vatRate:0.1,note:'Alış maliyetine %10 KDV eklendi',createdBy:user.uid,createdAt:serverTimestamp()});count++;
+            transaction.update(refs[i],{buy:after,buyBeforeVat:undo?product.buyBeforeVat:before,vatRate:undo?0:0.1,vatAppliedAt:undo?null:serverTimestamp(),vatRevertedAt:undo?serverTimestamp():null,updatedAt:serverTimestamp()});
+            transaction.set(doc(collection(db,'weltewInventory','main','movements')),{productId:ids[i],before:Number(product.qty)||0,after:Number(product.qty)||0,buyBefore:before,buyAfter:after,vatRate:undo?0:0.1,note:undo?'%10 KDV geri alındı; KDV öncesi alış maliyeti geri getirildi':'Alış maliyetine %10 KDV eklendi',createdBy:user.uid,createdAt:serverTimestamp()});count++;
           });return count;
         });
-        completed+=changed;if(token===generation)message(num(completed)+' ürünün maliyetine %10 KDV eklendi…');
+        completed+=changed;if(token===generation)message(num(completed)+(undo?' ürünün KDV işlemi geri alındı…':' ürünün maliyetine %10 KDV eklendi…'));
       }
-      if(token===generation)message(num(completed)+' ürünün alış maliyetine %10 KDV eklendi. Toplam stok maliyeti güncellendi.');
-    }catch(error){if(token===generation)message(num(completed)+' ürün güncellendi. '+(error.code==='permission-denied'?'Veritabanı erişimi reddedildi.':error.message)+' Tekrar deneyebilirsiniz; tamamlanan ürünlere ikinci kez KDV eklenmez.');}
-    finally{addingVat=false;for(const key of ['vat','zero-all','import','save'])$(key).disabled=false;}
-  });
+      if(token===generation)message(num(completed)+(undo?' ürünün KDV işlemi geri alındı. KDV öncesi maliyetleri geri getirildi.':' ürünün alış maliyetine %10 KDV eklendi. Toplam stok maliyeti güncellendi.'));
+    }catch(error){if(token===generation)message(num(completed)+' ürün güncellendi. '+(error.code==='permission-denied'?'Veritabanı erişimi reddedildi.':error.message)+' Tekrar deneyebilirsiniz; tamamlanan ürünlere aynı işlem tekrar uygulanmaz.');}
+    finally{addingVat=false;for(const key of ['vat','vat-undo','zero-all','import','save'])$(key).disabled=false;}
+  }
+  $('vat').addEventListener('click',()=>updateVat(false));
+  $('vat-undo').addEventListener('click',()=>updateVat(true));
   $('zero-all').addEventListener('click',()=>{if(!allowed()||zeroing||importing||addingVat||loading)return;$('zero-form').reset();$('zero-message').textContent='';$('zero-dialog').showModal();});
   $('zero-cancel').addEventListener('click',()=>$('zero-dialog').close());
   $('zero-dialog').addEventListener('close',()=>{$('zero-password').value='';});
