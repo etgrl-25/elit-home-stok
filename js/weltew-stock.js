@@ -29,7 +29,7 @@ export function createWeltewStockPanel({auth,db}) {
   const view=document.getElementById('weltewView'), nav=document.getElementById('weltewNavBtn');
   view.innerHTML=`<div class="ws-welcome"><div><p class="ws-eyebrow">ELİT HOME · ÖZEL ENVANTER</p><h1>Weltew Home Genel Stok</h1><p>Ürünlerinizi bulun, depo stoklarınızı tek yerde takip edin.</p></div><div class="brand-partner brand-partner-white"><span class="brand-partner-label">MARKA</span><img src="icons/weltew-logo-white.png" alt="Weltew Home"></div></div>
   <div class="ws-stats"><article><span>Ürün çeşidi</span><strong data-ws="count">0</strong></article><article><span>Toplam miktar</span><strong data-ws="quantity">0</strong></article><article><span>Stok maliyeti</span><strong data-ws="value">₺0</strong></article><article><span>Tükenen ürünler</span><strong data-ws="empty-count">0</strong></article></div>
-  <section class="ws-panel"><div class="ws-heading"><div><h2>Ürün envanteri</h2><p>Bu bölüm yalnızca elit hesabına özeldir.</p></div><button data-ws="zero-all" class="ws-button ws-danger" type="button">Hepsini kaldır · Stoğu sıfırla</button><button data-ws="import" class="ws-primary">↥ Excel / Toplu stok ekle</button><input data-ws="file" type="file" accept=".xlsx,.xls,.csv,.json" hidden></div>
+  <section class="ws-panel"><div class="ws-heading"><div><h2>Ürün envanteri</h2><p>Bu bölüm yalnızca elit hesabına özeldir.</p></div><button data-ws="vat" class="ws-button" type="button">%10 KDV ekle</button><button data-ws="zero-all" class="ws-button ws-danger" type="button">Hepsini kaldır · Stoğu sıfırla</button><button data-ws="import" class="ws-primary">↥ Excel / Toplu stok ekle</button><input data-ws="file" type="file" accept=".xlsx,.xls,.csv,.json" hidden></div>
   <div class="ws-filters"><input data-ws="search" type="search" placeholder="Ürün adı, kod veya barkod ara…" aria-label="Weltew ürünlerinde ara"><select data-ws="category" aria-label="Kategori"><option value="">Tüm kategoriler</option></select><select data-ws="warehouse" aria-label="Depo"><option value="">Tüm depolar</option></select><select data-ws="status" aria-label="Stok durumu"><option value="">Tüm stoklar</option><option value="available">Stokta</option><option value="empty">Tükenen</option></select><button data-ws="reset" class="ws-button">Temizle</button></div>
   <div data-ws="message" class="ws-message" role="status"></div><div class="ws-table-wrap"><table class="ws-table"><thead><tr><th>ÜRÜN / KOD</th><th>KATEGORİ / DEPO</th><th>MİKTAR</th><th>ALIŞ MALİYETİ</th><th>DURUM</th><th>İŞLEM</th></tr></thead><tbody data-ws="rows"></tbody></table></div><div data-ws="empty" class="ws-empty" hidden>Ürün bulunamadı. Aramayı veya filtreleri değiştirin.</div><div class="ws-footer"><span data-ws="summary"></span><div><button data-ws="prev" class="ws-button" aria-label="Önceki sayfa">←</button><span data-ws="page"></span><button data-ws="next" class="ws-button" aria-label="Sonraki sayfa">→</button></div></div></section>
   <dialog data-ws="dialog" class="ws-dialog"><form data-ws="form"><h2>Stok miktarını güncelle</h2><p data-ws="product-name"></p><label>Yeni miktar<input data-ws="qty" type="number" min="0" step="any" required></label><label>Açıklama<input data-ws="note" maxlength="300" placeholder="Sayım, giriş veya çıkış açıklaması"></label><p data-ws="form-message" role="status"></p><div class="ws-dialog-actions"><button type="button" data-ws="cancel" class="ws-button">Vazgeç</button><button type="submit" data-ws="save" class="ws-primary">Kaydet</button></div></form></dialog>
@@ -38,7 +38,7 @@ export function createWeltewStockPanel({auth,db}) {
 
 
   const $=key=>view.querySelector(`[data-ws="${key}"]`);
-  let user=null, rows=[], unsubscribe=null, page=1, generation=0, opened=false, editingId=null, loading=false, importing=false, zeroing=false;
+  let user=null, rows=[], unsubscribe=null, page=1, generation=0, opened=false, editingId=null, loading=false, importing=false, zeroing=false, addingVat=false;
   const allowed=()=>canAccessWeltew(user)&&auth?.currentUser?.uid===user.uid&&canAccessWeltew(auth.currentUser);
   const requireOwner=()=>{if(!allowed()) throw Error('Bu bölüm yalnızca elit hesabına açıktır.');};
   const message=text=>{$('message').textContent=text;};
@@ -50,17 +50,48 @@ export function createWeltewStockPanel({auth,db}) {
     const filtered=rows.filter(p=>terms.every(t=>fold([p.name,p.sku,p.barcode].join(' ')).includes(t))&&(!$('category').value||p.category===$('category').value)&&(!$('warehouse').value||p.warehouse===$('warehouse').value)&&(!$('status').value||($('status').value==='empty'?p.qty<=0:p.qty>0))).sort((a,b)=>a.name.localeCompare(b.name,'tr'));
     $('count').textContent=num(rows.length);$('quantity').textContent=num(rows.reduce((s,p)=>s+p.qty,0));$('value').textContent=money(rows.reduce((s,p)=>s+p.qty*p.buy,0));$('empty-count').textContent=num(rows.filter(p=>p.qty<=0).length);
     const pages=Math.max(1,Math.ceil(filtered.length/40));page=Math.max(1,Math.min(page,pages));const offset=(page-1)*40;
-    $('rows').innerHTML=filtered.slice(offset,offset+40).map(p=>`<tr><td><b>${escape(p.name)}</b><small>${escape(p.sku)}</small></td><td>${escape(p.category||'—')}<small>${escape(p.warehouse||'—')}</small></td><td><b>${num(p.qty)}</b> <small class="ws-inline">adet</small></td><td>${money(p.buy)}</td><td><span class="ws-status ${p.qty>0?'ws-available':'ws-out'}">${p.qty>0?'Stokta':'Tükendi'}</span></td><td><button class="ws-button" data-ws-edit="${escape(p.id)}" aria-label="${escape(p.name)} stok miktarını güncelle">± Stok</button></td></tr>`).join('');
+    $('rows').innerHTML=filtered.slice(offset,offset+40).map(p=>`<tr><td><b>${escape(p.name)}</b><small>${escape(p.sku)}</small></td><td>${escape(p.category||'—')}<small>${escape(p.warehouse||'—')}</small></td><td><b>${num(p.qty)}</b> <small class="ws-inline">adet</small></td><td>${money(p.buy)}${p.vatRate===0.1?'<small>%10 KDV eklendi</small>':''}</td><td><span class="ws-status ${p.qty>0?'ws-available':'ws-out'}">${p.qty>0?'Stokta':'Tükendi'}</span></td><td><button class="ws-button" data-ws-edit="${escape(p.id)}" aria-label="${escape(p.name)} stok miktarını güncelle">± Stok</button></td></tr>`).join('');
     $('empty').hidden=filtered.length>0||loading;$('summary').textContent=filtered.length?`${num(filtered.length)} üründen ${num(offset+1)}–${num(Math.min(offset+40,filtered.length))} gösteriliyor`:'0 ürün';$('page').textContent=`${page} / ${pages}`;$('prev').disabled=page===1;$('next').disabled=page===pages;
   }
   ['search','category','warehouse','status'].forEach(key=>$(key).addEventListener(key==='search'?'input':'change',()=>{page=1;render();}));
   $('reset').addEventListener('click',()=>{['search','category','warehouse','status'].forEach(k=>$(k).value='');page=1;render();});
-  $('zero-all').addEventListener('click',()=>{if(!allowed()||zeroing||importing||loading)return;$('zero-form').reset();$('zero-message').textContent='';$('zero-dialog').showModal();});
+  $('vat').addEventListener('click',async()=>{
+    if(!allowed()||loading||zeroing||importing||addingVat)return;
+    const token=generation,targets=rows.filter(p=>p.buy>0&&p.vatRate!==0.1).map(p=>p.id);let completed=0;
+    if(!targets.length){message('KDV eklenecek ürün yok. Maliyeti 0 olan veya %10 KDV eklenmiş ürünler atlanır.');return;}
+    if(!confirm(num(targets.length)+' ürünün alış maliyetine %10 KDV eklenecek (1.000 TL → 1.100 TL). Tüm depolar ve filtre dışında kalan ürünler de kapsanır. Ürün adetleri değişmez. Daha önce eklenenlere tekrar uygulanmaz. Onaylıyor musunuz?'))return;
+    try{
+      requireOwner();addingVat=true;invalidateImport();
+      for(const key of ['vat','zero-all','import','save','import-apply'])$(key).disabled=true;
+      for(let offset=0;offset<targets.length;offset+=40){
+        requireOwner();if(token!==generation)throw Error('Oturum değişti. İşlem durduruldu.');
+        const ids=targets.slice(offset,offset+40);
+        const changed=await runTransaction(db,async transaction=>{
+          requireOwner();if(token!==generation)throw Error('Oturum değişti.');
+          const refs=ids.map(id=>doc(db,'weltewInventory','main','products',id));
+          const snapshots=await Promise.all(refs.map(ref=>transaction.get(ref)));
+          requireOwner();if(token!==generation)throw Error('Oturum değişti.');let count=0;
+          snapshots.forEach((snap,i)=>{
+            if(!snap.exists())return;const product=snap.data(),before=Number(product.buy)||0;
+            if(before<=0||product.vatRate===0.1)return;
+            const after=Math.round((before*1.1+Number.EPSILON)*100)/100;
+            if(!Number.isFinite(after))throw Error('Ürün maliyeti sınırı aşıldı.');
+            transaction.update(refs[i],{buy:after,buyBeforeVat:before,vatRate:0.1,vatAppliedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+            transaction.set(doc(collection(db,'weltewInventory','main','movements')),{productId:ids[i],before:Number(product.qty)||0,after:Number(product.qty)||0,buyBefore:before,buyAfter:after,vatRate:0.1,note:'Alış maliyetine %10 KDV eklendi',createdBy:user.uid,createdAt:serverTimestamp()});count++;
+          });return count;
+        });
+        completed+=changed;if(token===generation)message(num(completed)+' ürünün maliyetine %10 KDV eklendi…');
+      }
+      if(token===generation)message(num(completed)+' ürünün alış maliyetine %10 KDV eklendi. Toplam stok maliyeti güncellendi.');
+    }catch(error){if(token===generation)message(num(completed)+' ürün güncellendi. '+(error.code==='permission-denied'?'Veritabanı erişimi reddedildi.':error.message)+' Tekrar deneyebilirsiniz; tamamlanan ürünlere ikinci kez KDV eklenmez.');}
+    finally{addingVat=false;for(const key of ['vat','zero-all','import','save'])$(key).disabled=false;}
+  });
+  $('zero-all').addEventListener('click',()=>{if(!allowed()||zeroing||importing||addingVat||loading)return;$('zero-form').reset();$('zero-message').textContent='';$('zero-dialog').showModal();});
   $('zero-cancel').addEventListener('click',()=>$('zero-dialog').close());
   $('zero-dialog').addEventListener('close',()=>{$('zero-password').value='';});
   $('zero-dialog').addEventListener('cancel',e=>{if(zeroing)e.preventDefault();});
   $('zero-form').addEventListener('submit',async event=>{
-    event.preventDefault();if(zeroing||importing)return;const token=generation;let completed=0,started=false;
+    event.preventDefault();if(zeroing||importing||addingVat)return;const token=generation;let completed=0,started=false;
     try{
       requireOwner();if(loading)throw Error('Stokların yüklenmesini bekleyin.');
       if(await hash($('zero-password').value)!=='e204d67929dbc17ab03bac3d6c6aaa74b9e0385d9f23a81cd425cb81e266bd81')throw Error('Şifre yanlış. Stoklar değiştirilmedi.');
@@ -102,13 +133,13 @@ export function createWeltewStockPanel({auth,db}) {
   $('import-columns').addEventListener('change',invalidateImport);
   $('import-sheet').addEventListener('change',selectImportSheet);
   $('import-mode').addEventListener('change',invalidateImport);
-  $('import').addEventListener('click',()=>{if(allowed()&&!importing&&!zeroing&&!loading)$('file').click();});
+  $('import').addEventListener('click',()=>{if(allowed()&&!importing&&!zeroing&&!addingVat&&!loading)$('file').click();});
   $('import-cancel').addEventListener('click',()=>$('import-dialog').close());
   $('import-dialog').addEventListener('cancel',e=>{if(importing)e.preventDefault();});
   $('file').addEventListener('change',async event=>{
     const file=event.target.files[0],token=generation;if(!file)return;
     try{
-      requireOwner();if(importing||zeroing)throw Error('Bir toplu işlem zaten devam ediyor.');
+      requireOwner();if(importing||zeroing||addingVat)throw Error('Bir toplu işlem zaten devam ediyor.');
       $('import').disabled=true;message('Dosya okunuyor…');
       const parsed=await readInventoryFile(file);requireOwner();if(token!==generation)return;
       importFile=parsed;invalidateImport();$('import-file-name').textContent=file.name;
@@ -136,7 +167,7 @@ export function createWeltewStockPanel({auth,db}) {
     finally{previewing=false;$('import-preview').disabled=false;}
   });
   $('import-apply').addEventListener('click',async()=>{
-    if(importing||zeroing||!importPlan||!importFile)return;
+    if(importing||zeroing||addingVat||!importPlan||!importFile)return;
     const token=generation,plan=importPlan,mode=importMode,fingerprint=importFile.fingerprint;
     const operation=mode==='add'?fingerprint:crypto.randomUUID();let completed=0,skipped=0;
     try{
@@ -178,11 +209,11 @@ export function createWeltewStockPanel({auth,db}) {
     }
   });
 
-  $('rows').addEventListener('click',event=>{const button=event.target.closest('[data-ws-edit]');if(!button||!allowed()||zeroing||importing)return;const p=rows.find(p=>p.id===button.dataset.wsEdit);if(!p)return;editingId=p.id;$('product-name').textContent=p.name;$('qty').value=p.qty;$('note').value='';$('form-message').textContent='';$('dialog').showModal();});
+  $('rows').addEventListener('click',event=>{const button=event.target.closest('[data-ws-edit]');if(!button||!allowed()||zeroing||importing||addingVat)return;const p=rows.find(p=>p.id===button.dataset.wsEdit);if(!p)return;editingId=p.id;$('product-name').textContent=p.name;$('qty').value=p.qty;$('note').value='';$('form-message').textContent='';$('dialog').showModal();});
   $('cancel').addEventListener('click',()=>$('dialog').close());
   $('form').addEventListener('submit',async event=>{
     event.preventDefault();const token=generation,id=editingId,quantity=Number($('qty').value),note=$('note').value.trim();
-    try {requireOwner();if(zeroing||importing)throw Error('Toplu stok işlemi devam ediyor.');if(!id||!Number.isFinite(quantity)||quantity<0)throw Error('Geçerli bir miktar yazın.');$('save').disabled=true;
+    try {requireOwner();if(zeroing||importing||addingVat)throw Error('Toplu stok işlemi devam ediyor.');if(!id||!Number.isFinite(quantity)||quantity<0)throw Error('Geçerli bir miktar yazın.');$('save').disabled=true;
       const ref=doc(db,'weltewInventory','main','products',id),movement=doc(collection(db,'weltewInventory','main','movements'));
       await runTransaction(db,async transaction=>{requireOwner();if(token!==generation)throw Error('Oturum değişti.');const snap=await transaction.get(ref);if(!snap.exists())throw Error('Ürün bulunamadı.');requireOwner();if(token!==generation)throw Error('Oturum değişti.');transaction.update(ref,{qty:quantity,updatedAt:serverTimestamp()});transaction.set(movement,{productId:id,before:Number(snap.data().qty)||0,after:quantity,note,createdBy:user.uid,createdAt:serverTimestamp()});});
       if(token===generation){$('dialog').close();message('Stok miktarı güncellendi.');}

@@ -1,4 +1,4 @@
-const CACHE_NAME = "elit-home-stok-v12-excel-import";
+const CACHE_NAME = "elit-home-stok-v13-vat";
 const APP_SHELL = [
   "./",
   "./index.html",
