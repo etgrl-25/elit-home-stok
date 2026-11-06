@@ -44,7 +44,9 @@ export async function readInventoryFile(file) {
 function value(row,index,numeric=false){const cell=row[index];return cell&&typeof cell==='object'?(numeric?cell.raw:cell.text):cell;}
 export async function buildImportPlan(sheet, mapping, existing, mode) {
   mapping={...Object.fromEntries(Object.keys(fields).map(key=>[key,-1])),...mapping};
-  if(!['add','replace'].includes(mode))throw Error('Aktarım türünü seçin.');
+  if(!['add','replace','sync','costs'].includes(mode))throw Error('Aktarım türünü seçin.');
+  const updateBuy=mode==='sync'||mode==='costs';
+  if(updateBuy&&mapping.buy<0)throw Error('Birim maliyet sütununu seçin. Örneğin: Son Alış Maliyeti.');
   if(mapping.sku<0||mapping.qty<0)throw Error('Ürün kodu ve miktar sütunlarını seçin.');
   if(mapping.sku===mapping.qty)throw Error('Ürün kodu ve miktar farklı sütunlar olmalı.');
   if(!sheet.rows.length||sheet.rows.length>20000)throw Error('Dosyada 1–20.000 stok satırı olmalı.');
@@ -60,15 +62,17 @@ export async function buildImportPlan(sheet, mapping, existing, mode) {
     const matches=(bySku.get(sku)||[]).filter(p=>(mapping.warehouse<0||String(p.warehouse??'').trim()===warehouse)&&(mapping.branch<0||String(p.branch??'').trim()===branch));
     if(matches.length>1)throw Error(`${sku}: birden fazla kayıt bulundu. Depo/şube sütununu seçin; aynı kod aynı depoda tekrarlanıyorsa kayıtları ayırın.`);
     const old=matches[0];
+    if(mode==='costs'&&!old)throw Error(`${sku}: mevcut ürün bulunamadı. Önce adet ve maliyet güncelleme seçeneğiyle aktarın.`);
     const name=String(get('name')??'').trim();
     if(!old&&!name)throw Error(`${sku}: yeni ürün için ürün adı sütunu gerekli.`);
     const buy=mapping.buy>=0?parseQuantity(get('buy',true)):0;
-    if(!old&&(!Number.isFinite(buy)||buy<0))throw Error(`${sku}: maliyet geçersiz.`);
+    if((!old||updateBuy)&&(!Number.isFinite(buy)||buy<0))throw Error(`${sku}: maliyet geçersiz.`);
     const id=old?.id??await digest(JSON.stringify([branch,warehouse,sku])+'|0');
     const prior=groups.get(id);
-    if(prior){if(mode==='replace')throw Error(`${sku}: dosyada aynı ürün/depo birden fazla kez var. Miktar güncellemek için satırları birleştirin.`);prior.amount+=qty;if(!Number.isFinite(prior.amount))throw Error(`${sku}: miktar sınırı aşıldı.`);continue;}
-    groups.set(id,{id,sku,name:old?.name??name,warehouse:old?.warehouse??warehouse,before:Number(old?.qty)||0,amount:qty,isNew:!old,record:{name,sku,warehouse,branch,buy,category:String(get('category')??''),barcode:String(get('barcode')??''),unit:'adet'}});
+    if(prior){if(mode!=='add')throw Error(`${sku}: dosyada aynı ürün/depo birden fazla kez var. Güncellemek için satırları birleştirin.`);prior.amount+=qty;if(!Number.isFinite(prior.amount))throw Error(`${sku}: miktar sınırı aşıldı.`);continue;}
+    const buyBefore=Number(old?.buy)||0,buyAfter=updateBuy||!old?buy:buyBefore;
+    groups.set(id,{id,sku,name:old?.name??name,warehouse:old?.warehouse??warehouse,before:Number(old?.qty)||0,amount:qty,isNew:!old,updateBuy,buyBefore,buyAfter,record:{name,sku,warehouse,branch,buy,category:String(get('category')??''),barcode:String(get('barcode')??''),unit:'adet'}});
   }
   if(!groups.size)throw Error('Aktarılacak stok satırı bulunamadı.');
-  return [...groups.values()].map(p=>({...p,after:mode==='add'?p.before+p.amount:p.amount}));
+  return [...groups.values()].map(p=>({...p,after:mode==='costs'?p.before:mode==='add'?p.before+p.amount:p.amount}));
 }

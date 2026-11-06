@@ -1,4 +1,4 @@
-const CACHE_NAME = "elit-home-stok-v21-groq";
+const CACHE_NAME = "elit-home-stok-v22-import-costs";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,7 +8,7 @@ const APP_SHELL = [
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
   "./js/stock-assistant.js?v=21",
-  "./js/weltew-import.js?v=12",
+  "./js/weltew-import.js?v=22",
   "./css/weltew-stock.css",
   "./css/brand.css",
   "./icons/elit-home-logo.png",

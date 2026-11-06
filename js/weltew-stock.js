@@ -1,6 +1,6 @@
 import { collection, doc, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-import {readInventoryFile, guessColumns, buildImportPlan, digest} from './weltew-import.js?v=12';
+import {readInventoryFile, guessColumns, buildImportPlan, digest} from './weltew-import.js?v=22';
 
 import {createStockAssistant} from './stock-assistant.js?v=21';
 
@@ -38,7 +38,7 @@ export function createWeltewStockPanel({auth,db}) {
   <div data-ws="message" class="ws-message" role="status"></div><div class="ws-table-wrap"><table class="ws-table"><thead><tr><th>ÜRÜN / KOD</th><th>KATEGORİ / DEPO</th><th>MİKTAR</th><th>ALIŞ MALİYETİ</th><th>DURUM</th><th>İŞLEM</th></tr></thead><tbody data-ws="rows"></tbody></table></div><div data-ws="empty" class="ws-empty" hidden>Ürün bulunamadı. Aramayı veya filtreleri değiştirin.</div><div class="ws-footer"><span data-ws="summary"></span><div><button data-ws="prev" class="ws-button" aria-label="Önceki sayfa">←</button><span data-ws="page"></span><button data-ws="next" class="ws-button" aria-label="Sonraki sayfa">→</button></div></div></section>
   <dialog data-ws="dialog" class="ws-dialog"><form data-ws="form"><h2>Stok miktarını güncelle</h2><p data-ws="product-name"></p><label>Yeni miktar<input data-ws="qty" type="number" min="0" step="any" required></label><label>Açıklama<input data-ws="note" maxlength="300" placeholder="Sayım, giriş veya çıkış açıklaması"></label><p data-ws="form-message" role="status"></p><div class="ws-dialog-actions"><button type="button" data-ws="cancel" class="ws-button">Vazgeç</button><button type="submit" data-ws="save" class="ws-primary">Kaydet</button></div></form></dialog>
   <dialog data-ws="zero-dialog" class="ws-dialog" aria-labelledby="ws-zero-title"><form data-ws="zero-form"><h2 id="ws-zero-title">Weltew stoklarını sıfırla</h2><p>Filtrelerden bağımsız olarak tüm Weltew ürünlerinin miktarı 0 olur. Ürün kayıtları korunur. İşlem geri alınamaz.</p><label>İşlem şifresi<input data-ws="zero-password" type="password" required autocomplete="off" autofocus></label><p data-ws="zero-message" role="alert"></p><div class="ws-dialog-actions"><button type="button" data-ws="zero-cancel" class="ws-button">Vazgeç</button><button type="submit" data-ws="zero-submit" class="ws-primary">Tüm stokları sıfırla</button></div></form></dialog>
-  <dialog data-ws="import-dialog" class="ws-dialog ws-import-dialog" aria-labelledby="ws-import-title"><h2 id="ws-import-title">Excel / Toplu stok aktarımı</h2><p>Dosyayı seçin, işlem türünü belirleyin ve önizlemeyi kontrol edin. Excel dosyası cihazınızda okunur.</p><div class="ws-import-settings"><label>İşlem türü<select data-ws="import-mode"><option value="add">Gelen adetleri mevcut stoğun üzerine ekle</option><option value="replace">Mevcut miktarları dosyadaki miktarlarla güncelle</option></select></label><label>Excel sayfası<select data-ws="import-sheet"></select></label></div><p data-ws="import-file-name"></p><div data-ws="import-columns" class="ws-import-settings"></div><p>Ürün kodu ve miktar zorunlu. Aynı kod birden fazla depoda varsa depo sütununu seçin. Yeni ürünler için ürün adı gereklidir. Dosyada olmayan ürünler değişmez.</p><button data-ws="import-preview" class="ws-button" type="button">Önizlemeyi hazırla</button><div data-ws="import-summary" role="status"></div><div class="ws-table-wrap"><table class="ws-table"><thead><tr><th>ÜRÜN / KOD</th><th>DEPO</th><th>MEVCUT</th><th>DOSYA</th><th>SONUÇ</th></tr></thead><tbody data-ws="import-rows"></tbody></table></div><p data-ws="import-message" role="alert"></p><div class="ws-dialog-actions"><button type="button" data-ws="import-cancel" class="ws-button">Vazgeç</button><button type="button" data-ws="import-apply" class="ws-primary" disabled>Onayla ve aktar</button></div></dialog>`;
+  <dialog data-ws="import-dialog" class="ws-dialog ws-import-dialog" aria-labelledby="ws-import-title"><h2 id="ws-import-title">Excel / Toplu stok aktarımı</h2><p>Dosyayı seçin, işlem türünü belirleyin ve önizlemeyi kontrol edin. Excel dosyası cihazınızda okunur.</p><div class="ws-import-settings"><label>İşlem türü<select data-ws="import-mode"><option value="add">Gelen adetleri mevcut stoğun üzerine ekle</option><option value="sync">Adet ve birim maliyetleri Excel’e göre güncelle</option><option value="costs">Yalnızca birim maliyetleri güncelle (adetleri koru)</option><option value="replace">Yalnızca miktarları güncelle (maliyetleri koru)</option></select></label><label>Excel sayfası<select data-ws="import-sheet"></select></label></div><p data-ws="import-file-name"></p><div data-ws="import-columns" class="ws-import-settings"></div><p>Ürün kodu ve miktar zorunlu. Aynı kod birden fazla depoda varsa depo sütununu seçin. Yeni ürünler için ürün adı gereklidir. Dosyada olmayan ürünler değişmez.</p><button data-ws="import-preview" class="ws-button" type="button">Önizlemeyi hazırla</button><div data-ws="import-summary" role="status"></div><div class="ws-table-wrap"><table class="ws-table"><thead><tr><th>ÜRÜN / KOD</th><th>DEPO</th><th>MEVCUT</th><th>DOSYA</th><th>SONUÇ ADET</th><th>ESKİ BİRİM MALİYET</th><th>YENİ BİRİM MALİYET</th></tr></thead><tbody data-ws="import-rows"></tbody></table></div><p data-ws="import-message" role="alert"></p><div class="ws-dialog-actions"><button type="button" data-ws="import-cancel" class="ws-button">Vazgeç</button><button type="button" data-ws="import-apply" class="ws-primary" disabled>Onayla ve aktar</button></div></dialog>`;
 
 
   const $=key=>view.querySelector(`[data-ws="${key}"]`);
@@ -131,7 +131,7 @@ export function createWeltewStockPanel({auth,db}) {
   });
   $('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});
   let importFile=null, importPlan=null, importMode='add', previewing=false;
-  const columnLabels={sku:'Ürün kodu *',qty:'Miktar / Gelen adet *',name:'Ürün adı',warehouse:'Depo / Ambar',branch:'Şube',buy:'Birim maliyet (yeni ürün)',category:'Kategori',barcode:'Barkod'};
+  const columnLabels={sku:'Ürün kodu *',qty:'Miktar / Gelen adet *',name:'Ürün adı',warehouse:'Depo / Ambar',branch:'Şube',buy:'Birim maliyet / Son alış maliyeti',category:'Kategori',barcode:'Barkod'};
   function invalidateImport(){importPlan=null;$('import-apply').disabled=true;$('import-rows').innerHTML='';$('import-summary').textContent='';$('import-message').textContent='';}
   function selectImportSheet(){
     invalidateImport();const sheet=importFile?.sheets[Number($('import-sheet').value)];if(!sheet)return;
@@ -168,8 +168,10 @@ export function createWeltewStockPanel({auth,db}) {
       if(sheet!==importFile.sheets[Number($('import-sheet').value)]||mode!==$('import-mode').value||Object.entries(mapping).some(([key,index])=>Number(view.querySelector(`[data-import-column="${key}"]`).value)!==index))return;
       importPlan=plan;importMode=mode;
       const fresh=plan.filter(p=>p.isNew).length;
-      $('import-summary').textContent=`${num(plan.length)} ürün · ${num(plan.length-fresh)} mevcut · ${num(fresh)} yeni. ${mode==='add'?'Dosyadaki adetler mevcut stoğa EKLENECEK.':'Mevcut miktarlar dosyadaki miktarlarla DEĞİŞTİRİLECEK.'} İlk 30 ürün aşağıda. Son miktarlar aktarım anındaki stok üzerinden hesaplanır.`;
-      $('import-rows').innerHTML=plan.slice(0,30).map(p=>`<tr><td>${escape(p.name)}<small>${escape(p.sku)}${p.isNew?' · YENİ ÜRÜN':''}</small></td><td>${escape(p.warehouse||'—')}</td><td>${num(p.before)}</td><td>${num(p.amount)}</td><td><b>${num(p.after)}</b></td></tr>`).join('');
+      const costChanges=plan.filter(p=>p.updateBuy&&Math.abs(p.buyAfter-p.buyBefore)>0.00000001).length;
+      const projectedCost=plan.reduce((sum,p)=>sum+p.after*p.buyAfter,0);
+      $('import-summary').textContent=`${num(plan.length)} ürün · ${num(plan.length-fresh)} mevcut · ${num(fresh)} yeni. ${mode==='add'?'Dosyadaki adetler mevcut stoğa EKLENECEK; mevcut maliyetler korunacak.':mode==='costs'?'Yalnızca birim maliyetler Excel’den güncellenecek; adetler korunacak.':mode==='sync'?'Adetler ve birim maliyetler Excel’e göre güncellenecek.':'Yalnızca adetler güncellenecek; mevcut maliyetler korunacak.'} ${mode==='sync'||mode==='costs'?num(costChanges)+' üründe fiyat farkı var. Dosyadaki KDV hariç birim maliyetler kullanılır; bu satırlardaki uygulama KDV işareti kaldırılır. ':''}Aktarılan ürünlerin öngörülen toplam maliyeti: ${money(projectedCost)}. Dosyada olmayan ürünler bu toplama dahil değildir. İlk 30 ürün aşağıda. Son miktarlar aktarım anındaki stok üzerinden hesaplanır.`;
+      $('import-rows').innerHTML=plan.slice(0,30).map(p=>`<tr><td>${escape(p.name)}<small>${escape(p.sku)}${p.isNew?' · YENİ ÜRÜN':''}</small></td><td>${escape(p.warehouse||'—')}</td><td>${num(p.before)}</td><td>${num(p.amount)}</td><td><b>${num(p.after)}</b></td><td>${money(p.buyBefore)}</td><td>${money(p.buyAfter)}</td></tr>`).join('');
       $('import-apply').disabled=false;
     }catch(error){if(token===generation)$('import-message').textContent=error.message;}
     finally{previewing=false;$('import-preview').disabled=false;}
@@ -179,7 +181,7 @@ export function createWeltewStockPanel({auth,db}) {
     const token=generation,plan=importPlan,mode=importMode,fingerprint=importFile.fingerprint;
     const operation=mode==='add'?fingerprint:crypto.randomUUID();let completed=0,skipped=0;
     try{
-      requireOwner();if(!confirm(`${num(plan.length)} ürün aktarılacak. ${mode==='add'?'Dosyadaki adetler mevcut stoklara eklenecek. Aynı dosya tekrar yüklenirse ikinci kez eklenmez.':'Dosyadaki miktarlar mevcut miktarların yerine yazılacak.'} Onaylıyor musunuz?`))return;
+      requireOwner();if(!confirm(`${num(plan.length)} ürün aktarılacak. ${mode==='add'?'Dosyadaki adetler mevcut stoklara eklenecek. Aynı dosya tekrar yüklenirse ikinci kez eklenmez.':mode==='costs'?'Yalnızca birim maliyetler Excel’den güncellenecek; adetler korunacak. Güncellenen maliyetler KDV hariçtir.':mode==='sync'?'Adetler ve birim maliyetler Excel’e göre değiştirilecek. Güncellenen maliyetler KDV hariçtir.':'Yalnızca miktarlar değiştirilecek; eski maliyetler korunacak.'} Onaylıyor musunuz?`))return;
       importing=true;$('import-dialog').setAttribute('aria-busy','true');
       for(const key of ['import','zero-all','import-apply','import-preview','import-cancel','import-mode','import-sheet','save'])$(key).disabled=true;
       view.querySelectorAll('[data-import-column]').forEach(el=>el.disabled=true);
@@ -198,11 +200,11 @@ export function createWeltewStockPanel({auth,db}) {
           snapshots.forEach((snap,i)=>{
             if(receipts[i].exists()){duplicate++;return;}
             const item=batch[i];if(!snap.exists()&&!item.isNew)throw Error(`${item.sku}: ürün artık bulunamıyor. Önizlemeyi yeniden hazırlayın.`);
-            const before=snap.exists()?Number(snap.data().qty)||0:0,after=mode==='add'?before+item.amount:item.amount;
+            const before=snap.exists()?Number(snap.data().qty)||0:0,after=mode==='costs'?before:mode==='add'?before+item.amount:item.amount;
             if(!Number.isFinite(after))throw Error(`${item.sku}: miktar sınırı aşıldı.`);
-            if(snap.exists())transaction.update(refs[i],{qty:after,updatedAt:serverTimestamp()});
+            if(snap.exists())transaction.update(refs[i],{qty:after,...(item.updateBuy?{buy:item.record.buy,buyBeforeVat:item.record.buy,vatRate:0,vatAppliedAt:null,vatRevertedAt:null}:{}),updatedAt:serverTimestamp()});
             else transaction.set(refs[i],{...item.record,qty:after,updatedAt:serverTimestamp()});
-            transaction.set(moves[i],{productId:item.id,before,after,note:mode==='add'?'Excel toplu stok girişi':'Excel stok miktarı güncelleme',createdBy:user.uid,createdAt:serverTimestamp(),importFingerprint:fingerprint,importMode:mode});changed++;
+            transaction.set(moves[i],{productId:item.id,before,after,...(item.updateBuy?{buyBefore:snap.exists()?Number(snap.data().buy)||0:0,buyAfter:item.record.buy}:{}),note:mode==='add'?'Excel toplu stok girişi':mode==='costs'?'Excel birim maliyet güncelleme (adet korundu)':mode==='sync'?'Excel adet ve birim maliyet güncelleme':'Excel stok miktarı güncelleme',createdBy:user.uid,createdAt:serverTimestamp(),importFingerprint:fingerprint,importMode:mode});changed++;
           });return {changed,duplicate};
         });
         completed+=result.changed;skipped+=result.duplicate;
