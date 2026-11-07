@@ -2,7 +2,7 @@ import { collection, doc, onSnapshot, runTransaction, serverTimestamp } from 'ht
 
 import {readInventoryFile, guessColumns, buildImportPlan, digest} from './weltew-import.js?v=22';
 
-import {createStockAssistant} from './stock-assistant.js?v=21';
+import {createStockAssistant} from './stock-assistant.js?v=22';
 
 import {matchesInventoryQuery,matchesInventoryCategory,getInventoryGroups} from './inventory-search.js?v=19';
 
