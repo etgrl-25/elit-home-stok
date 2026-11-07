@@ -1,4 +1,4 @@
-const CACHE_NAME = "elit-home-stok-v25-sales-modal-layout";
+const CACHE_NAME = "elit-home-stok-v26-sales-modal-layout";
 const APP_SHELL = [
   "./",
   "./index.html",
