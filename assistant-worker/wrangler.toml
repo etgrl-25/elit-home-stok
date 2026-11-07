@@ -10,5 +10,11 @@ name = "ASSISTANT_RATE_LIMITER"
 namespace_id = "2026110621"
 simple = { limit = 10, period = 60 }
 
-# Add GROQ_API_KEY as a Cloudflare Secret, not a variable or a tracked file.
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "SALES_DB"
+database_name = "elithomebosch-db"
+database_id = "35bb7e86-37d0-4929-a7f2-98c5d90c1055"
 

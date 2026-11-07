@@ -11,8 +11,8 @@ export function trimChatHistory(messages){
   }
   return output;
 }
-export async function streamChat({endpoint,token,messages,stockContext='',signal,onText}){
-  const response=await fetch(normalizeAssistantEndpoint(endpoint)+'/api/chat',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({messages:trimChatHistory(messages),stockContext}),signal});
+export async function streamChat({endpoint,token,messages,stockContext='',quick=false,signal,onText}){
+  const response=await fetch(normalizeAssistantEndpoint(endpoint)+'/api/chat',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({messages:trimChatHistory(messages),stockContext,quick}),signal});
   if(!response.ok){const body=await response.json().catch(()=>({}));throw Error(body.error||'Asistan bağlantısı yanıt vermedi.');}
   if(!response.headers.get('content-type')?.includes('text/event-stream')||!response.body)throw Error('Sunucu sohbet yanıtı döndürmedi.');
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',text='',finished=false;

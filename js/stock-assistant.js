@@ -41,7 +41,7 @@ export function createStockAssistant({view,getRows,allowed,isLoading,onOpen=()=>
   root.append(dialog);const $=key=>dialog.querySelector(`[data-sa="${key}"]`);
   let endpoint='https://elit-home-assistant.ertugrulerturann.workers.dev',history=[],controller=null,busy=false,epoch=0;
   try{endpoint=normalizeAssistantEndpoint(localStorage.getItem('elit-home-assistant-url')||endpoint);}catch{}
-  $('endpoint').value=endpoint;$('mode').value=endpoint?'ai':'local';
+  $('endpoint').value=endpoint;$('mode').value='local';
   function status(){const ai=$('mode').value==='ai';$('status').textContent=ai?(endpoint?'Groq sohbeti · Mesaj gönderince bağlantı kontrol edilir. Stokları değiştirmez.':'Genel sohbet için sunucu bağlantısı bekleniyor. Yapay zekâ bağlantısı bölümünden asistan adresini kaydet.'):'Hızlı stok modu · Yalnızca mevcut Weltew stoklarından hesaplar, genel sohbet yapmaz.';$('share').disabled=!ai;}
   function add(text,kind){const bubble=document.createElement('div');bubble.className='ws-assistant-bubble '+kind;bubble.textContent=text;$('log').append(bubble);while($('log').children.length>32)$('log').firstElementChild.remove();$('log').scrollTop=$('log').scrollHeight;return bubble;}
   function setBusy(value){busy=value;$('send').disabled=value;$('stop').hidden=!value;$('mode').disabled=value;$('share').disabled=value||$('mode').value!=='ai';$('connect').disabled=value;}
@@ -50,7 +50,8 @@ export function createStockAssistant({view,getRows,allowed,isLoading,onOpen=()=>
     if(!allowed()){close();return;}if(busy)return;
     const ai=$('mode').value==='ai';if(ai&&!endpoint){$('settings').open=true;$('connection-message').textContent='Önce Cloudflare asistan adresini kaydet.';$('endpoint').focus();return;}
     add(question,'question');const bubble=add(ai?'Yanıt hazırlanıyor…':'Hesaplanıyor…','answer');const start=performance.now(),token=epoch;
-    if(!ai){bubble.textContent=isLoading()?'Stoklar yükleniyor. Biraz sonra tekrar sor.':answerStockQuestion(question,getRows());$('timing').textContent=`Cihazda hesaplandı: ${Math.max(1,Math.round(performance.now()-start))} ms`;return;}
+    const salesQuestion=/\b(ciro|satis|kasa|nakit|kart|havale|eft|webpos|veresiye|borc|acik hesap)\b/.test(fold(question));
+    if(!ai&&!salesQuestion){bubble.textContent=isLoading()?'Stoklar yükleniyor. Biraz sonra tekrar sor.':answerStockQuestion(question,getRows());$('timing').textContent=`Cihazda hesaplandı: ${Math.max(1,Math.round(performance.now()-start))} ms`;return;}
     if($('share').checked&&isLoading()){bubble.textContent='Stok verileri henüz yükleniyor. Yükleme bitince tekrar sor.';return;}
     setBusy(true);const aborter=new AbortController();controller=aborter;const timer=setTimeout(()=>aborter.abort(),65000);
     try{
@@ -58,7 +59,7 @@ export function createStockAssistant({view,getRows,allowed,isLoading,onOpen=()=>
       let stockContext='';
       if($('share').checked){const rows=getRows();stockContext=JSON.stringify({scope:'Weltew Home genel stok, tüm depolar',records:rows.length,totalQuantity:rows.reduce((s,p)=>s+(Number(p.qty)||0),0),totalCost:rows.reduce((s,p)=>s+(Number(p.qty)||0)*(Number(p.buy)||0),0),query:question,localQueryResult:answerStockQuestion(question,rows),detailLimit:'Sorgu ayrıntıları en fazla 10 kayıt içerir; liste tam envanter değildir.'}).slice(0,6500);}
       const messages=trimChatHistory([...history,{role:'user',content:question}]);let first=true;
-      const answer=await streamChat({endpoint,token:authToken,messages,stockContext,signal:aborter.signal,onText:text=>{if(token!==epoch||!allowed())return;bubble.textContent=text;$('log').scrollTop=$('log').scrollHeight;if(first){first=false;$('timing').textContent=`İlk yanıt: ${((performance.now()-start)/1000).toFixed(1)} sn · Groq`;}}});
+      const answer=await streamChat({endpoint,token:authToken,messages,stockContext,quick:!ai&&salesQuestion,signal:aborter.signal,onText:text=>{if(token!==epoch||!allowed())return;bubble.textContent=text;$('log').scrollTop=$('log').scrollHeight;if(first){first=false;$('timing').textContent=`İlk yanıt: ${((performance.now()-start)/1000).toFixed(1)} sn · ${!ai&&salesQuestion?'Hızlı satış sorgusu':'Ücretsiz asistan'}`;}}});
       if(token===epoch&&allowed()){history=trimChatHistory([...messages,{role:'assistant',content:answer}]);$('timing').textContent+=` · Tamamlandı`;} 
     }catch(error){if(token===epoch){bubble.textContent+=(bubble.textContent==='Yanıt hazırlanıyor…'?'':'\n\n');if(bubble.textContent.startsWith('Yanıt hazırlanıyor…'))bubble.textContent='';bubble.textContent+=aborter.signal.aborted?'Yanıt durduruldu veya zaman aşımına uğradı.':error.message;$('timing').textContent='Yanıt tamamlanmadı.';}}
     finally{clearTimeout(timer);if(token===epoch){controller=null;setBusy(false);}}
