@@ -183,12 +183,16 @@
             <select id="ciroStoreSelect"></select>
           </div>
 
-          <form id="ciroAddForm" class="kasa-add-row">
-            <input type="date" id="ciroDate" required />
-            <input type="number" id="ciroAmount" placeholder="Ciro tutarı" min="0" step="0.01" required />
-            <input type="text" id="ciroNote" placeholder="Not / o gün ne yapıldı (opsiyonel)" maxlength="140" />
-            <button type="submit" class="add-btn" title="Ciro ekle">+</button>
-          </form>
+          <button id="openCiroSale" class="ciro-new-sale" type="button">＋ Yeni satış ekle</button>
+          <dialog id="ciroSaleDialog" class="ciro-sale-dialog"><form id="ciroAddForm" method="dialog">
+            <div class="ciro-sale-head"><div><span>SATIŞ KAYDI</span><h2>Yeni satış ekle</h2></div><button id="closeCiroSale" type="button" aria-label="Kapat">×</button></div>
+            <label>Tutar (₺)<input type="number" id="ciroAmount" placeholder="0,00" min="0.01" step="0.01" required autofocus /></label>
+            <fieldset><legend>Ödeme türü</legend><div class="ciro-payment-options"><button type="button" data-ciro-payment="Nakit" class="chosen">Nakit</button><button type="button" data-ciro-payment="Kart">Kart</button><button type="button" data-ciro-payment="Havale">Havale</button><button type="button" data-ciro-payment="WebPOS">WebPOS</button><button type="button" data-ciro-payment="Açık Hesap">Açık Hesap</button></div></fieldset>
+            <label id="ciroInstallmentWrap" hidden>Taksit sayısı<select id="ciroInstallments"><option value="1">1 — Tek çekim</option><option value="2">2 taksit</option><option value="3">3 taksit</option><option value="4">4 taksit</option><option value="5">5 taksit</option><option value="6">6 taksit</option><option value="7">7 taksit</option><option value="8">8 taksit</option><option value="9">9 taksit</option><option value="10">10 taksit</option><option value="11">11 taksit</option><option value="12">12 taksit</option></select></label>
+            <label>Satış tarihi ve saati<input type="datetime-local" id="ciroDate" required /></label>
+            <label>Açıklama <small>(isteğe bağlı)</small><input type="text" id="ciroNote" placeholder="Örn. Buzdolabı, marka / model" maxlength="140" /></label>
+            <p>Satış mağaza cirosuna kaydedilir.</p><button type="submit" class="ciro-save-sale">Satışı kaydet ↗</button>
+          </form></dialog>
 
           <div class="kasa-summary kasa-summary-single">
             <div class="kasa-summary-item kasa-summary-balance">
@@ -382,6 +386,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script type="module" src="js/app.js?v=22"></script>
+<script type="module" src="js/app.js?v=23"></script>
 </body>
 </html>

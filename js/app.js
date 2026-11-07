@@ -680,9 +680,16 @@ function populateCiroStoreSelect() {
 }
 ciroStoreSelect.addEventListener("change", renderCiroView);
 
-if (ciroDate) {
-  ciroDate.value = new Date().toISOString().slice(0, 10);
-}
+const ciroSaleDialog = document.getElementById("ciroSaleDialog");
+const openCiroSale = document.getElementById("openCiroSale");
+const closeCiroSale = document.getElementById("closeCiroSale");
+const ciroInstallmentWrap = document.getElementById("ciroInstallmentWrap");
+const ciroInstallments = document.getElementById("ciroInstallments");
+let ciroPayment = "Nakit";
+function setCiroPayment(payment) { ciroPayment = payment; document.querySelectorAll("[data-ciro-payment]").forEach(b => b.classList.toggle("chosen", b.dataset.ciroPayment === payment)); ciroInstallmentWrap.hidden = payment !== "Kart"; }
+openCiroSale?.addEventListener("click", () => { ciroDate.value = new Date().toISOString().slice(0,16); ciroAmount.value = ""; ciroNote.value = ""; setCiroPayment("Nakit"); ciroInstallments.value = "1"; ciroSaleDialog.showModal(); ciroAmount.focus(); });
+closeCiroSale?.addEventListener("click", () => ciroSaleDialog.close());
+document.querySelectorAll("[data-ciro-payment]").forEach(b => b.addEventListener("click", () => setCiroPayment(b.dataset.ciroPayment)));
 
 ciroAddForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -699,12 +706,11 @@ ciroAddForm.addEventListener("submit", async (e) => {
   if (!date || !amount || amount <= 0) return;
   try {
     await addDoc(collection(db, "ciro"), {
-      storeId, date, amount, note,
+      storeId, date: date.slice(0,10), amount, note, payment: ciroPayment, installments: ciroPayment === "Kart" ? Number(ciroInstallments.value) : 1,
       createdBy: currentUserLabel.textContent || "",
       createdAt: serverTimestamp()
     });
-    ciroAmount.value = "";
-    ciroNote.value = "";
+    ciroSaleDialog.close();
     showToast("Ciro eklendi.");
   } catch (err) {
     showToast("Ciro eklenemedi: " + err.message);
