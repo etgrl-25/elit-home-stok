@@ -1,8 +1,8 @@
-const CACHE_NAME = "elit-home-stok-v24-sales-modal";
+const CACHE_NAME = "elit-home-stok-v25-sales-modal-layout";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./css/style.css",
+  "./css/style.css?v=25",
   "./js/app.js?v=23",
   "./js/weltew-stock.js",
   "./js/ai-chat.js?v=21",
