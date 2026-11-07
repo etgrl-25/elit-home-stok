@@ -190,7 +190,8 @@
             <fieldset><legend>Ödeme türü</legend><div class="ciro-payment-options"><button type="button" data-ciro-payment="Nakit" class="chosen">Nakit</button><button type="button" data-ciro-payment="Kart">Kart</button><button type="button" data-ciro-payment="Havale">Havale</button><button type="button" data-ciro-payment="WebPOS">WebPOS</button><button type="button" data-ciro-payment="Açık Hesap">Açık Hesap</button></div></fieldset>
             <label id="ciroInstallmentWrap" hidden>Taksit sayısı<select id="ciroInstallments"><option value="1">1 — Tek çekim</option><option value="2">2 taksit</option><option value="3">3 taksit</option><option value="4">4 taksit</option><option value="5">5 taksit</option><option value="6">6 taksit</option><option value="7">7 taksit</option><option value="8">8 taksit</option><option value="9">9 taksit</option><option value="10">10 taksit</option><option value="11">11 taksit</option><option value="12">12 taksit</option></select></label>
             <label>Satış tarihi ve saati<input type="datetime-local" id="ciroDate" required /></label>
-            <label>Açıklama <small>(isteğe bağlı)</small><input type="text" id="ciroNote" placeholder="Örn. Buzdolabı, marka / model" maxlength="140" /></label>
+            <label>Ad soyad <small>(isteğe bağlı)</small><input type="text" id="ciroCustomerName" placeholder="Müşteri adı soyadı" maxlength="120" /></label>
+            <label>Açıklama <small>(isteğe bağlı)</small><input type="text" id="ciroNote" maxlength="140" /></label>
             <p>Satış mağaza cirosuna kaydedilir.</p><button type="submit" class="ciro-save-sale">Satışı kaydet ↗</button>
           </form></dialog>
 

@@ -685,9 +685,10 @@ const openCiroSale = document.getElementById("openCiroSale");
 const closeCiroSale = document.getElementById("closeCiroSale");
 const ciroInstallmentWrap = document.getElementById("ciroInstallmentWrap");
 const ciroInstallments = document.getElementById("ciroInstallments");
+const ciroCustomerName = document.getElementById("ciroCustomerName");
 let ciroPayment = "Nakit";
 function setCiroPayment(payment) { ciroPayment = payment; document.querySelectorAll("[data-ciro-payment]").forEach(b => b.classList.toggle("chosen", b.dataset.ciroPayment === payment)); ciroInstallmentWrap.hidden = payment !== "Kart"; }
-openCiroSale?.addEventListener("click", () => { ciroDate.value = new Date().toISOString().slice(0,16); ciroAmount.value = ""; ciroNote.value = ""; setCiroPayment("Nakit"); ciroInstallments.value = "1"; ciroSaleDialog.showModal(); ciroAmount.focus(); });
+openCiroSale?.addEventListener("click", () => { ciroDate.value = new Date().toISOString().slice(0,16); ciroAmount.value = ""; ciroCustomerName.value = ""; ciroNote.value = ""; setCiroPayment("Nakit"); ciroInstallments.value = "1"; ciroSaleDialog.showModal(); ciroAmount.focus(); });
 closeCiroSale?.addEventListener("click", () => ciroSaleDialog.close());
 document.querySelectorAll("[data-ciro-payment]").forEach(b => b.addEventListener("click", () => setCiroPayment(b.dataset.ciroPayment)));
 
@@ -702,11 +703,12 @@ ciroAddForm.addEventListener("submit", async (e) => {
   }
   const date = ciroDate.value;
   const amount = parseFloat(ciroAmount.value);
+  const customerName = ciroCustomerName.value.trim();
   const note = ciroNote.value.trim();
   if (!date || !amount || amount <= 0) return;
   try {
     await addDoc(collection(db, "ciro"), {
-      storeId, date: date.slice(0,10), amount, note, payment: ciroPayment, installments: ciroPayment === "Kart" ? Number(ciroInstallments.value) : 1,
+      storeId, date: date.slice(0,10), amount, customerName, note, payment: ciroPayment, installments: ciroPayment === "Kart" ? Number(ciroInstallments.value) : 1,
       createdBy: currentUserLabel.textContent || "",
       createdAt: serverTimestamp()
     });
