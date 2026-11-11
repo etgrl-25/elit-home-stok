@@ -1,15 +1,15 @@
-const CACHE_NAME = "elit-home-stok-v27-stock-movements";
+const CACHE_NAME = "elit-home-stok-v28-stock-route-details";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=25",
-  "./js/app.js?v=24",
-  "./js/weltew-stock.js",
+  "./js/app.js?v=25",
+  "./js/weltew-stock.js?v=23",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
   "./js/stock-assistant.js?v=22",
   "./js/weltew-import.js?v=22",
-  "./css/weltew-stock.css?v=23",
+  "./css/weltew-stock.css?v=24",
   "./css/brand.css",
   "./icons/elit-home-logo.png",
   "./icons/elit-app-192.png",

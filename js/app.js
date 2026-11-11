@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
-import { createWeltewStockPanel } from "./weltew-stock.js?v=22";
+import { createWeltewStockPanel } from "./weltew-stock.js?v=23";
 
 const EMAIL_SUFFIX = "@elithome.local";
 const PALETTE = [
@@ -205,7 +205,7 @@ function showToast(text) {
 function formatMovementTime(value) { const date=value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date) ? date.toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'}) : 'Tarih bekleniyor'; }
 function renderStockMovements() {
   if (!stockMovements.length) { movementList.innerHTML='<div class="ws-empty">Henüz stok hareketi yok.</div>'; return; }
-  movementList.innerHTML=stockMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=movementProducts[m.productId]?.name || 'Ürün kaydı';const type=delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme';return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${m.note||'Açıklama yok'} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${delta>0?'in':delta<0?'out':'same'}">${type}</span><b>${before} → ${after} adet</b></article>`;}).join('');
+  movementList.innerHTML=stockMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · ');return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b></article>`;}).join('');
 }
 function startStockMovements() {
   if (movementsUnsub || !db) return;
