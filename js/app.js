@@ -58,6 +58,9 @@ const menuToggle = document.getElementById("menuToggle");
 const sidebarClose = document.getElementById("sidebarClose");
 const navItems = document.querySelectorAll(".nav-item");
 const viewTitle = document.getElementById("viewTitle");
+const movementNavBtn = document.getElementById("movementNavBtn");
+const movementsView = document.getElementById("movementsView");
+const movementList = document.getElementById("movementList");
 const overviewView = document.getElementById("overviewView");
 const storesView = document.getElementById("storesView");
 const sidebarStoreList = document.getElementById("sidebarStoreList");
@@ -164,6 +167,8 @@ let categoriesUnsub = null;
 let showroomUnsub = null;
 let kasaDefteriUnsub = null;
 let ciroUnsub = null;
+let movementsUnsub = null, movementProductsUnsub = null;
+let stockMovements = [], movementProducts = {};
 const productUnsubs = {};       // storeId -> unsubscribe fn
 const storesMeta = [];          // [{id, name}]
 const storeProducts = {};       // storeId -> [{id, name, description, category, stock, image}]
@@ -195,6 +200,17 @@ function showToast(text) {
   toastEl.textContent = text;
   toastEl.classList.add("show");
   setTimeout(() => toastEl.classList.remove("show"), 2200);
+}
+
+function formatMovementTime(value) { const date=value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date) ? date.toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'}) : 'Tarih bekleniyor'; }
+function renderStockMovements() {
+  if (!stockMovements.length) { movementList.innerHTML='<div class="ws-empty">Henüz stok hareketi yok.</div>'; return; }
+  movementList.innerHTML=stockMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=movementProducts[m.productId]?.name || 'Ürün kaydı';const type=delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme';return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${m.note||'Açıklama yok'} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${delta>0?'in':delta<0?'out':'same'}">${type}</span><b>${before} → ${after} adet</b></article>`;}).join('');
+}
+function startStockMovements() {
+  if (movementsUnsub || !db) return;
+  movementProductsUnsub=onSnapshot(collection(db,'weltewInventory','main','products'),snap=>{movementProducts=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()])); if(currentView==='movements')renderStockMovements();});
+  movementsUnsub=onSnapshot(query(collection(db,'weltewInventory','main','movements'),orderBy('createdAt','desc')),snap=>{stockMovements=snap.docs.map(d=>({id:d.id,...d.data()})); if(currentView==='movements')renderStockMovements();},()=>{movementList.innerHTML='<div class="ws-empty">Hareketler yüklenemedi.</div>';});
 }
 
 // ---------- Giriş / Kayıt sekmeleri ----------
@@ -276,6 +292,7 @@ navItems.forEach(btn => {
 
 const VIEW_TITLES = {
   weltew: "Weltew Home Genel Stok",
+  movements: "Stok Hareketleri",
   overview: "Genel Bakış",
   stores: "Mağazalar",
   search: "Tüm Ürünlerde Ara",
@@ -288,7 +305,9 @@ const VIEW_TITLES = {
 
 function switchView(view) {
   if (view === "weltew" && !weltewStock.allowed()) return;
+  if (view === "movements" && !weltewStock.allowed()) return;
   document.getElementById("weltewView").style.display = view === "weltew" ? "block" : "none";
+  movementsView.style.display = view === "movements" ? "block" : "none";
   if (view === "weltew") weltewStock.open();
   else weltewStock.close();
   if (view === "adminSettings" && !isAdmin) return; // yetkisiz erişim engeli
@@ -311,6 +330,7 @@ function switchView(view) {
   if (view === "ciro") renderCiroView();
   if (view === "kasadefteri") renderKasaDefteri();
   if (view === "adminSettings") renderAdminSettings();
+  if (view === "movements") renderStockMovements();
   closeSidebar();
 }
 
@@ -320,6 +340,8 @@ if (isConfigured) {
     if (user) {
       currentUid = user.uid;
       weltewStock.setUser(user);
+      movementNavBtn.style.display = weltewStock.allowed() ? "flex" : "none";
+      if (weltewStock.allowed()) startStockMovements();
       if (currentView === "weltew") {
         if (weltewStock.allowed()) weltewStock.open();
         else switchView("overview");
@@ -334,6 +356,7 @@ if (isConfigured) {
       listenShowroom();
       listenMyUserDoc(user.uid); // isAdmin / myAssignedStoreId + ciro dinleyicisini canlı olarak yönetir
     } else {
+      if (movementsUnsub) movementsUnsub(); if (movementProductsUnsub) movementProductsUnsub(); movementsUnsub = movementProductsUnsub = null; stockMovements=[]; movementProducts={}; movementNavBtn.style.display="none";
       currentUid = null;
       appScreen.style.display = "none";
       loginScreen.style.display = "flex";

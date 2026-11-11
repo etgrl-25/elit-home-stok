@@ -19,7 +19,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css?v=25" />
-<link rel="stylesheet" href="css/weltew-stock.css?v=22" />
+<link rel="stylesheet" href="css/weltew-stock.css?v=23" />
 <link rel="stylesheet" href="css/brand.css" />
 </head>
 <body>
@@ -74,6 +74,7 @@
 
         <nav class="sidebar-nav">
           <button class="nav-item" id="weltewNavBtn" data-view="weltew" type="button" style="display:none;"><span class="nav-ico">▦</span> Weltew Home Genel Stok</button>
+          <button class="nav-item" id="movementNavBtn" data-view="movements" type="button" style="display:none;"><span class="nav-ico">⇄</span> Stok Hareketleri</button>
           <button class="nav-item active" data-view="overview" type="button">
             <span class="nav-ico">▦</span> Genel Bakış
           </button>
@@ -130,6 +131,7 @@
         </header>
 
         <main id="weltewView" class="ws-view" style="display:none;"></main>
+        <main id="movementsView" class="ws-view" style="display:none;"><section class="ws-panel"><div class="ws-heading"><div><h2>Stok Hareketleri</h2><p>Giriş, çıkış ve toplu stok işlemlerinin kaydı.</p></div></div><div id="movementList" class="movement-list"></div></section></main>
         <main id="overviewView" class="boards"></main>
 
         <main id="storesView" class="store-detail" style="display:none;">
@@ -387,6 +389,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script type="module" src="js/app.js?v=23"></script>
+<script type="module" src="js/app.js?v=24"></script>
 </body>
 </html>
