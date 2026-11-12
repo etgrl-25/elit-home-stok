@@ -837,10 +837,12 @@ function renderCiroView() {
     storeEntries.forEach(c => {
       const row = document.createElement("div");
       row.className = "kasa-row";
+      const customerName = String(c.customerName || c.note || "İsimsiz satış").trim();
+      const shortNote = c.customerName && c.note ? String(c.note).trim() : "";
       row.innerHTML = `
         <div class="kasa-row-info">
-          <div class="kasa-row-desc">${escapeHtml(c.note || "—")}</div>
-          <div class="kasa-row-date">${escapeHtml(c.date || "")}${c.createdBy ? " · " + escapeHtml(c.createdBy) : ""}</div>
+          <div class="kasa-row-desc">${escapeHtml(customerName)}</div>
+          <div class="kasa-row-date">${shortNote ? escapeHtml(shortNote) + " · " : ""}${escapeHtml(c.date || "")}${c.createdBy ? " · " + escapeHtml(c.createdBy) : ""}</div>
         </div>
         <div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>
         <button type="button" class="del-btn" title="Kaydı sil">✕</button>
