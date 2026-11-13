@@ -861,7 +861,7 @@ function renderCiroView() {
           <div class="kasa-row-desc">${escapeHtml(customerName)}</div>
           <div class="kasa-row-date">${shortNote ? escapeHtml(shortNote) + " · " : ""}${escapeHtml(c.date || "")}${c.createdBy ? " · " + escapeHtml(c.createdBy) : ""}</div>
         </div>
-        ${canViewFullCiro ? `<div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>` : `<div class="ciro-hidden-amount">Tutar gizli</div>`}
+        <div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>
         <button type="button" class="del-btn" title="Kaydı sil">✕</button>
       `;
       row.querySelector(".del-btn").addEventListener("click", () => deleteCiroEntry(c.id, c.date || "", c.storeId));
