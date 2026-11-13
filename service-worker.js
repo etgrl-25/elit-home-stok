@@ -1,8 +1,8 @@
-const CACHE_NAME = "elit-home-stok-v31-sidebar-footer";
+const CACHE_NAME = "elit-home-stok-v32-sidebar-grid";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./css/style.css?v=26",
+  "./css/style.css?v=27",
   "./js/app.js?v=27",
   "./js/weltew-stock.js?v=23",
   "./js/ai-chat.js?v=21",
