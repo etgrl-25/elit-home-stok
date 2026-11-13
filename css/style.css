@@ -787,6 +787,7 @@ main.boards{
   font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;flex-shrink:0;
 }
 .kasa-row-amount.income{color:var(--success);}
+.ciro-hidden-amount{color:var(--ink-soft);font-size:11px;font-weight:600;white-space:nowrap;}
 .kasa-row-amount.expense{color:var(--danger);}
 @media (max-width:680px){
   .kasa-view{padding:16px 14px calc(40px + var(--safe-bottom));}

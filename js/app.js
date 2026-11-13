@@ -796,7 +796,7 @@ function renderCiroView() {
   const isElitAccount = auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX;
   renderCiroCombinedTotals();
   document.getElementById("ciroYearSection").hidden = !isElitAccount || !storesMeta.length;
-  document.getElementById("ciroDailySection").hidden = !isElitAccount;
+  document.getElementById("ciroDailySection").hidden = false;
   document.getElementById("ciroMonthlySection").hidden = !isElitAccount;
   // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
   // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
@@ -834,11 +834,13 @@ function renderCiroView() {
 
   // Bu mağazanın kayıtları (gün gün)
   const storeEntries = ciroEntries.filter(c => c.storeId === storeId);
+  const ym = todayYm();
+  const visibleEntries = isElitAccount ? storeEntries : storeEntries.filter(c => (c.date || "").startsWith(ym));
   ciroDailyList.innerHTML = "";
-  if (storeEntries.length === 0) {
-    ciroDailyList.innerHTML = `<div class="empty-state">Bu mağaza için henüz ciro kaydı yok.</div>`;
+  if (visibleEntries.length === 0) {
+    ciroDailyList.innerHTML = `<div class="empty-state">Bu ay için henüz satış hareketi yok.</div>`;
   } else {
-    storeEntries.forEach(c => {
+    visibleEntries.forEach(c => {
       const row = document.createElement("div");
       row.className = "kasa-row";
       const customerName = String(c.customerName || c.note || "İsimsiz satış").trim();
@@ -848,7 +850,7 @@ function renderCiroView() {
           <div class="kasa-row-desc">${escapeHtml(customerName)}</div>
           <div class="kasa-row-date">${shortNote ? escapeHtml(shortNote) + " · " : ""}${escapeHtml(c.date || "")}${c.createdBy ? " · " + escapeHtml(c.createdBy) : ""}</div>
         </div>
-        <div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>
+        ${isElitAccount ? `<div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>` : `<div class="ciro-hidden-amount">Tutar gizli</div>`}
         <button type="button" class="del-btn" title="Kaydı sil">✕</button>
       `;
       row.querySelector(".del-btn").addEventListener("click", () => deleteCiroEntry(c.id, c.date || "", c.storeId));
@@ -857,7 +859,6 @@ function renderCiroView() {
   }
 
   // Bu ayki toplam (seçili mağaza)
-  const ym = todayYm();
   ciroCurrentMonthLabel.textContent = monthLabel(ym);
   const monthTotal = storeEntries.filter(c => (c.date || "").startsWith(ym)).reduce((s, c) => s + (c.amount || 0), 0);
   ciroCurrentMonthTotal.textContent = formatCurrency(monthTotal);
