@@ -204,8 +204,9 @@ function showToast(text) {
 
 function formatMovementTime(value) { const date=value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date) ? date.toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'}) : 'Tarih bekleniyor'; }
 function renderStockMovements() {
-  if (!stockMovements.length) { movementList.innerHTML='<div class="ws-empty">Henüz stok hareketi yok.</div>'; return; }
-  movementList.innerHTML=stockMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · ');return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b></article>`;}).join('');
+  const visibleMovements=stockMovements.filter(m=>!/kdv/i.test(String(m.note||'')));
+  if (!visibleMovements.length) { movementList.innerHTML='<div class="ws-empty">Henüz stok giriş veya çıkış hareketi yok.</div>'; return; }
+  movementList.innerHTML=visibleMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · ');return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b></article>`;}).join('');
 }
 function startStockMovements() {
   if (movementsUnsub || !db) return;
@@ -792,11 +793,14 @@ function renderCiroCombinedTotals() {
 }
 
 function renderCiroView() {
+  const isElitAccount = auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX;
   renderCiroCombinedTotals();
-  document.getElementById("ciroYearSection").hidden = !storesMeta.length || (!isAdmin && !myAssignedStoreId);
+  document.getElementById("ciroYearSection").hidden = !isElitAccount || !storesMeta.length;
+  document.getElementById("ciroDailySection").hidden = !isElitAccount;
+  document.getElementById("ciroMonthlySection").hidden = !isElitAccount;
   // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
   // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
-  ciroAllStoresSection.style.display = isAdmin ? "block" : "none";
+  ciroAllStoresSection.style.display = isElitAccount ? "block" : "none";
 
   if (storesMeta.length === 0) {
     ciroStorePickerRow.style.display = "none";
