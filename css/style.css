@@ -788,7 +788,7 @@ main.boards{
 }
 .kasa-row-amount.income{color:var(--success);}
 .ciro-hidden-amount{color:var(--ink-soft);font-size:11px;font-weight:600;white-space:nowrap;}
-.ciro-unlock{position:fixed;right:9px;top:76px;z-index:25;width:20px;height:20px;border:0;background:transparent;color:transparent;font-size:0;padding:0;border-radius:50%;cursor:pointer;opacity:.05}.ciro-unlock:hover,.ciro-unlock:focus-visible{background:#edf3f5;color:#6f8792;opacity:.45;font-size:13px;outline:0}@media(max-width:680px){.ciro-unlock{right:7px;top:58px}}
+.ciro-unlock{position:fixed;right:14px;top:82px;z-index:25;width:18px;height:18px;border:2px solid #9eb4aa;background:#edf5ef;color:transparent;font-size:0;padding:0;border-radius:50%;cursor:pointer;opacity:.8}.ciro-unlock:hover,.ciro-unlock:focus-visible{background:#d6e8da;border-color:#5f8a6b;opacity:1;outline:0}@media(max-width:680px){.ciro-unlock{right:10px;top:64px}}
 .kasa-row-amount.expense{color:var(--danger);}
 @media (max-width:680px){
   .kasa-view{padding:16px 14px calc(40px + var(--safe-bottom));}
