@@ -788,6 +788,7 @@ main.boards{
 }
 .kasa-row-amount.income{color:var(--success);}
 .ciro-hidden-amount{color:var(--ink-soft);font-size:11px;font-weight:600;white-space:nowrap;}
+.ciro-unlock{float:right;border:0;background:transparent;color:#9aadb8;font-size:16px;letter-spacing:2px;padding:3px 8px;cursor:pointer;line-height:1}.ciro-unlock:hover{color:var(--ink);}
 .kasa-row-amount.expense{color:var(--danger);}
 @media (max-width:680px){
   .kasa-view{padding:16px 14px calc(40px + var(--safe-bottom));}

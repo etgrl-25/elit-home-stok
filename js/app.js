@@ -115,6 +115,7 @@ const ciroDailyList = document.getElementById("ciroDailyList");
 const ciroMonthlyList = document.getElementById("ciroMonthlyList");
 const ciroAllMonthSelect = document.getElementById("ciroAllMonthSelect");
 const ciroAllStoresList = document.getElementById("ciroAllStoresList");
+const ciroUnlockBtn = document.getElementById("ciroUnlockBtn");
 
 // Kasa Defteri (artık tüm kullanıcılara açık, mağaza bazlı)
 const kasaDefteriNavBtn = document.getElementById("kasaDefteriNavBtn");
@@ -179,6 +180,7 @@ let isAdmin = false;
 let kasaEntries = [];           // [{id, date, description, type, amount}]
 let ciroEntries = [];           // [{id, storeId, date, amount, note}]
 let selectedCiroMonth = null;   // "YYYY-MM"
+let ciroFullAccess = sessionStorage.getItem("elit-ciro-full-access") === "1";
 
 // Admin Ayarları / kullanıcı-mağaza atamaları
 let currentUid = null;
@@ -201,6 +203,13 @@ function showToast(text) {
   toastEl.classList.add("show");
   setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
+
+ciroUnlockBtn.addEventListener("click", () => {
+  if (auth?.currentUser?.email !== "elit" + EMAIL_SUFFIX) return;
+  if (ciroFullAccess) { ciroFullAccess=false; sessionStorage.removeItem("elit-ciro-full-access"); showToast("Yönetici ciro görünümü kapatıldı."); renderCiroView(); return; }
+  if (prompt("Yönetici ciro şifresi") !== "2525") { showToast("Şifre yanlış."); return; }
+  ciroFullAccess=true; sessionStorage.setItem("elit-ciro-full-access","1"); showToast("Tüm ciro detayları açıldı."); renderCiroView();
+});
 
 function formatMovementTime(value) { const date=value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date) ? date.toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'}) : 'Tarih bekleniyor'; }
 function renderStockMovements() {
@@ -775,7 +784,7 @@ function getCiroCombinedTotals(entries, storeIds, month, year) {
 }
 function renderCiroCombinedTotals() {
   const section = document.getElementById('ciroCombinedSection');
-  const allowed = isAdmin && auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX && storesMeta.length > 0;
+  const allowed = ciroFullAccess && isAdmin && auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX && storesMeta.length > 0;
   section.hidden = !allowed;
   if (!allowed) {
     ['ciroCombinedMonth','ciroCombinedYear','ciroCombinedAll','ciroCombinedMonthLabel','ciroCombinedYearLabel','ciroCombinedStoreCount'].forEach(id => { document.getElementById(id).textContent = ''; });
@@ -794,13 +803,15 @@ function renderCiroCombinedTotals() {
 
 function renderCiroView() {
   const isElitAccount = auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX;
+  const canViewFullCiro = isElitAccount && ciroFullAccess;
+  ciroUnlockBtn.style.display = isElitAccount ? "inline-flex" : "none";
   renderCiroCombinedTotals();
-  document.getElementById("ciroYearSection").hidden = !isElitAccount || !storesMeta.length;
+  document.getElementById("ciroYearSection").hidden = !canViewFullCiro || !storesMeta.length;
   document.getElementById("ciroDailySection").hidden = false;
   document.getElementById("ciroMonthlySection").hidden = !isElitAccount;
   // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
   // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
-  ciroAllStoresSection.style.display = isElitAccount ? "block" : "none";
+  ciroAllStoresSection.style.display = canViewFullCiro ? "block" : "none";
 
   if (storesMeta.length === 0) {
     ciroStorePickerRow.style.display = "none";
@@ -835,7 +846,7 @@ function renderCiroView() {
   // Bu mağazanın kayıtları (gün gün)
   const storeEntries = ciroEntries.filter(c => c.storeId === storeId);
   const ym = todayYm();
-  const visibleEntries = isElitAccount ? storeEntries : storeEntries.filter(c => (c.date || "").startsWith(ym));
+  const visibleEntries = canViewFullCiro ? storeEntries : storeEntries.filter(c => (c.date || "").startsWith(ym));
   ciroDailyList.innerHTML = "";
   if (visibleEntries.length === 0) {
     ciroDailyList.innerHTML = `<div class="empty-state">Bu ay için henüz satış hareketi yok.</div>`;
@@ -850,7 +861,7 @@ function renderCiroView() {
           <div class="kasa-row-desc">${escapeHtml(customerName)}</div>
           <div class="kasa-row-date">${shortNote ? escapeHtml(shortNote) + " · " : ""}${escapeHtml(c.date || "")}${c.createdBy ? " · " + escapeHtml(c.createdBy) : ""}</div>
         </div>
-        ${isElitAccount ? `<div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>` : `<div class="ciro-hidden-amount">Tutar gizli</div>`}
+        ${canViewFullCiro ? `<div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>` : `<div class="ciro-hidden-amount">Tutar gizli</div>`}
         <button type="button" class="del-btn" title="Kaydı sil">✕</button>
       `;
       row.querySelector(".del-btn").addEventListener("click", () => deleteCiroEntry(c.id, c.date || "", c.storeId));
