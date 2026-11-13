@@ -340,7 +340,8 @@ function switchView(view) {
   if (view === "ciro") renderCiroView();
   if (view === "kasadefteri") renderKasaDefteri();
   if (view === "adminSettings") renderAdminSettings();
-  if (view === "movements") renderStockMovements();
+  if (view === "movements") { startStockMovements(); renderStockMovements(); }
+  else if (movementsUnsub) { movementsUnsub(); movementsUnsub=null; if (movementProductsUnsub) movementProductsUnsub(); movementProductsUnsub=null; }
   closeSidebar();
 }
 
@@ -351,7 +352,6 @@ if (isConfigured) {
       currentUid = user.uid;
       weltewStock.setUser(user);
       movementNavBtn.style.display = weltewStock.allowed() ? "flex" : "none";
-      if (weltewStock.allowed()) startStockMovements();
       if (currentView === "weltew") {
         if (weltewStock.allowed()) weltewStock.open();
         else switchView("overview");

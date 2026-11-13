@@ -1,9 +1,9 @@
-const CACHE_NAME = "elit-home-stok-v37-owner-control-marker";
+const CACHE_NAME = "elit-home-stok-v38-efficient-movements";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=30",
-  "./js/app.js?v=30",
+  "./js/app.js?v=31",
   "./js/weltew-stock.js?v=23",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
