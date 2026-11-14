@@ -1,9 +1,9 @@
-const CACHE_NAME = "elit-home-stok-v51-visible-user-list";
+const CACHE_NAME = "elit-home-stok-v52-visible-permission-names";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./css/style.css?v=30",
-  "./js/app.js?v=44",
+  "./css/style.css?v=31",
+  "./js/app.js?v=45",
   "./js/weltew-stock.js?v=26",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",

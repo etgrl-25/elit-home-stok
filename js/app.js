@@ -1019,14 +1019,14 @@ function renderAdminSettings() {
   userPermissionList.innerHTML = "";
   usersMeta.forEach(u => {
     const row = document.createElement("div");
-    row.className = "kasa-row";
+    row.className = "kasa-row user-permission-row";
     const isElitAdmin = u.role === "admin" || u.username === "elit";
     const inactive = u.disabled === true;
     const canView = isElitAdmin || u.permissions?.canViewCiro !== false;
     const canManage = isElitAdmin || u.permissions?.canManageCiro !== false;
     const canHistory = isElitAdmin || u.permissions?.canViewCiroHistory === true;
     const accountName = u.username || "Adı tanımlanmamış hesap";
-    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}${isElitAdmin ? " · Admin" : ""}${inactive ? " · Erişim kapalı" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Satış ekler / siler</label>${isElitAdmin ? "" : `<button type="button" class="mini-btn" data-user-toggle>${inactive ? "Geri Aç" : "Kaldır"}</button>`}`;
+    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}${isElitAdmin ? " · Admin" : ""}${inactive ? " · Erişim kapalı" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><div class="user-permission-options"><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Satış ekler / siler</label>${isElitAdmin ? "" : `<button type="button" class="mini-btn" data-user-toggle>${inactive ? "Geri Aç" : "Kaldır"}</button>`}</div>`;
     const viewBox=row.querySelector('[data-permission="view"]'),historyBox=row.querySelector('[data-permission="history"]'),manageBox=row.querySelector('[data-permission="manage"]');
     const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked){manageBox.checked=false;historyBox.checked=false;}manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canViewCiroHistory":historyBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
     manageBox.disabled=!viewBox.checked || inactive;historyBox.disabled=!viewBox.checked || inactive;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);
