@@ -200,7 +200,6 @@ let myUserDocUnsub = null;
 let usersUnsub = null;
 let usersMeta = [];             // [{id, username, role, assignedStoreId}]
 let editingAssignmentUid = null;
-const BULK_RESET_ONCE_KEY = "elit-home-personnel-reset-20261114";
 let personnelResetRunning = false;
 
 let newCategoryIconData = "";
@@ -387,10 +386,17 @@ if (isConfigured) {
         if (weltewStock.allowed()) weltewStock.open();
         else switchView("overview");
       }
+      try {
+        await ensureUserDoc(user);
+      } catch (err) {
+        console.error("[Giriş erişimi]", err);
+        loginMsg.textContent = err.message || "Bu hesabın erişimi kaldırılmış.";
+        await signOut(auth);
+        return;
+      }
       loginScreen.style.display = "none";
       appScreen.style.display = "block";
       currentUserLabel.textContent = user.email.replace(EMAIL_SUFFIX, "");
-      await ensureUserDoc(user);
       await ensureSeedStores();
       listenStores();
       listenCategories();
@@ -440,23 +446,16 @@ function teardownListeners() {
 }
 
 // ---------- Kullanıcı belgesi (users/{uid}) oluşturma ----------
-// Yeni hesap oluşturulduğunda ya da belgesi olmayan bir kullanıcı giriş yaptığında
-// Firestore'da "users/{uid}" belgesi yoksa, varsayılan role:"user" ile oluşturulur.
-// Admin rolü YALNIZCA Firebase Console'dan elle "admin" yapılarak verilir.
+// Uygulama erişimi /users profilinden gelir. Profil silindiyse, eski giriş bilgisi
+// yeniden profil oluşturamaz; yalnızca adminin panelden eklediği kullanıcılar girebilir.
 async function ensureUserDoc(user) {
-  try {
-    const uref = doc(db, "users", user.uid);
-    const snap = await getDoc(uref);
-    if (!snap.exists()) {
-      const username = user.email.replace(EMAIL_SUFFIX, "");
-      await setDoc(uref, {
-        username, email: user.email, role: "user", assignedStoreId: "", createdAt: serverTimestamp()
-      });
-    } else if (!snap.data().email) {
-      await updateDoc(uref, { email: user.email, username: snap.data().username || user.email.replace(EMAIL_SUFFIX, "") });
-    }
-  } catch (err) {
-    console.error("[Kullanıcı belgesi] oluşturulamadı:", err);
+  const uref = doc(db, "users", user.uid);
+  const snap = await getDoc(uref);
+  if (!snap.exists()) {
+    throw new Error("Bu hesabın erişimi kaldırılmış. Elit yöneticisinden yeni kullanıcı açmasını isteyin.");
+  }
+  if (!snap.data().email) {
+    await updateDoc(uref, { email: user.email, username: snap.data().username || user.email.replace(EMAIL_SUFFIX, "") });
   }
 }
 
@@ -1007,9 +1006,6 @@ function listenUsers() {
     usersMeta = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.username || a.id).localeCompare(b.username || b.id, "tr"));
-    if (auth?.currentUser?.email === "elit" + EMAIL_SUFFIX && !personnelResetRunning && !localStorage.getItem(BULK_RESET_ONCE_KEY)) {
-      resetPersonnelAccess(true);
-    }
     if (currentView === "adminSettings") renderAdminSettings();
   }, err => showToast("Kullanıcı listesi alınamadı: " + err.message));
 }
@@ -1052,40 +1048,38 @@ function renderAdminSettings() {
     const row = document.createElement("div");
     row.className = "kasa-row user-permission-row";
     const isElitAdmin = u.role === "admin" || u.username === "elit";
-    const inactive = u.disabled === true;
     const canView = isElitAdmin || u.permissions?.canViewCiro !== false;
     const canManage = isElitAdmin || u.permissions?.canManageCiro !== false;
     const canHistory = isElitAdmin || u.permissions?.canViewCiroHistory === true;
     const accountName = u.username || "Adı tanımlanmamış hesap";
-    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}${isElitAdmin ? " · Admin" : ""}${inactive ? " · Erişim kapalı" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><div class="user-permission-options"><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin || inactive ? "disabled" : ""}> Satış ekler / siler</label>${isElitAdmin ? "" : `<button type="button" class="mini-btn" data-user-toggle>${inactive ? "Geri Aç" : "Kaldır"}</button>`}</div>`;
+    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><div class="user-permission-options"><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label>${isElitAdmin ? "" : `<button type="button" class="mini-btn" data-user-delete>Kullanıcıyı Sil</button>`}</div>`;
     const viewBox=row.querySelector('[data-permission="view"]'),historyBox=row.querySelector('[data-permission="history"]'),manageBox=row.querySelector('[data-permission="manage"]');
     const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked){manageBox.checked=false;historyBox.checked=false;}manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canViewCiroHistory":historyBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
-    manageBox.disabled=!viewBox.checked || inactive;historyBox.disabled=!viewBox.checked || inactive;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);
-    row.querySelector('[data-user-toggle]')?.addEventListener("click",async()=>{const next=!inactive;if(!confirm(`${accountName} kullanıcısının erişimi ${next ? "kapatılsın" : "yeniden açılsın"} mı?`))return;try{await updateDoc(doc(db,"users",u.id),{disabled:next});showToast(next?"Kullanıcının erişimi kapatıldı.":"Kullanıcı yeniden açıldı.");}catch(error){showToast("İşlem yapılamadı: "+error.message);}});
+    manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);
+    row.querySelector('[data-user-delete]')?.addEventListener("click",async()=>{if(!confirm(`${accountName} kullanıcısı silinsin mi? Kullanıcının erişimi kaldırılır; stok, satış ve ciro kayıtları silinmez.`))return;try{await deleteDoc(doc(db,"users",u.id));showToast("Kullanıcı silindi.");}catch(error){showToast("Kullanıcı silinemedi: "+error.message);}});
     userPermissionList.appendChild(row);
   });
 }
 
-async function resetPersonnelAccess(automatic=false) {
+async function resetPersonnelAccess() {
   if (personnelResetRunning) return;
   personnelResetRunning=true;
   const targets=usersMeta.filter(user=>user.role !== "admin" && user.username !== "elit");
-  if (!targets.length) { localStorage.setItem(BULK_RESET_ONCE_KEY,"done"); personnelResetRunning=false; showToast("Temizlenecek personel hesabı yok."); return; }
+  if (!targets.length) { personnelResetRunning=false; showToast("Silinecek personel hesabı yok."); return; }
   resetUsersBtn.disabled=true;
   try {
     const batch=writeBatch(db);
-    targets.forEach(user=>batch.update(doc(db,"users",user.id),{disabled:true,assignedStoreId:"",permissions:{canViewCiro:false,canViewCiroHistory:false,canManageCiro:false}}));
+    targets.forEach(user=>batch.delete(doc(db,"users",user.id)));
     await batch.commit();
-    localStorage.setItem(BULK_RESET_ONCE_KEY,"done");
-    showToast("Tüm personel hesapları pasife alındı.");
-  } catch(error) { showToast("Kullanıcılar temizlenemedi: "+error.message); }
+    showToast("Tüm personel kullanıcıları silindi.");
+  } catch(error) { showToast("Kullanıcılar silinemedi: "+error.message); }
   finally { resetUsersBtn.disabled=false; personnelResetRunning=false; }
 }
 resetUsersBtn.addEventListener("click", async () => {
   const targets=usersMeta.filter(user=>user.role !== "admin" && user.username !== "elit");
-  if (!targets.length) { showToast("Temizlenecek personel hesabı yok."); return; }
-  if (!confirm(`${targets.length} personel hesabının erişimi kapatılacak, mağaza ataması ve ciro yetkileri sıfırlanacak. Elit admin hesabı ve tüm satış/stok kayıtları korunur. Devam edilsin mi?`)) return;
-  await resetPersonnelAccess(false);
+  if (!targets.length) { showToast("Silinecek personel hesabı yok."); return; }
+  if (!confirm(`${targets.length} personel kullanıcısı silinecek. Elit admin hesabı ile stok, satış ve ciro kayıtları korunur. Devam edilsin mi?`)) return;
+  await resetPersonnelAccess();
 });
 
 async function removeAssignment(uid, label) {

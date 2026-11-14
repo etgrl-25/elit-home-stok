@@ -12,7 +12,10 @@ service cloud.firestore {
         && request.resource.data.assignedStoreId == "";
       allow update: if request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
-      allow delete: if false;
+      // Kullanıcı profilleri yalnızca admin tarafından silinebilir. Bu, stok,
+      // satış ve ciro kayıtlarını değil sadece /users altındaki erişim profilini siler.
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
     // ---- ciro: admin her mağazayı ekleyip silebilir; personel sadece kendine
