@@ -269,6 +269,11 @@
 
         <!-- ============ ADMIN AYARLARI (SADECE ADMIN) ============ -->
         <main id="adminSettingsView" class="ciro-view" style="display:none;">
+          <section class="backup-section">
+            <div class="ciro-section-title">Kayıtlı Kullanıcılar</div>
+            <p class="admin-settings-hint">Kullanıcı adları ve bağlı oldukları mağazalar burada görünür.</p>
+            <div id="registeredUsersList" class="kasa-list"></div>
+          </section>
           <div class="ciro-section-title-row">
             <div class="ciro-section-title">Ciro — Mağaza Atamaları</div>
             <button type="button" id="addCiroAssignmentBtn" class="mini-btn">+ Ekle</button>
@@ -406,6 +411,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script type="module" src="js/app.js?v=43"></script>
+<script type="module" src="js/app.js?v=44"></script>
 </body>
 </html>

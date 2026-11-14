@@ -136,6 +136,7 @@ const kasaAllStoresList = document.getElementById("kasaAllStoresList");
 // Admin Ayarları (sadece admin) — ciro mağaza atamaları
 const adminSettingsNavBtn = document.getElementById("adminSettingsNavBtn");
 const adminSettingsView = document.getElementById("adminSettingsView");
+const registeredUsersList = document.getElementById("registeredUsersList");
 const addCiroAssignmentBtn = document.getElementById("addCiroAssignmentBtn");
 const addUserBtn = document.getElementById("addUserBtn");
 const ciroAssignmentsList = document.getElementById("ciroAssignmentsList");
@@ -984,6 +985,16 @@ function listenUsers() {
 
 // ---------- Admin Ayarları: ciro mağaza atamaları listesi ----------
 function renderAdminSettings() {
+  registeredUsersList.innerHTML = "";
+  if (!usersMeta.length) registeredUsersList.innerHTML = '<div class="empty-state">Henüz kayıtlı kullanıcı yok.</div>';
+  usersMeta.forEach(u => {
+    const store=storesMeta.find(s=>s.id===u.assignedStoreId);
+    const name=u.username || u.email?.split("@")[0] || "Adı tanımlanmamış";
+    const row=document.createElement("div");
+    row.className="kasa-row";
+    row.innerHTML=`<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı adı: ${escapeHtml(name)}${u.role === "admin" ? " · Admin" : ""}</div><div class="kasa-row-date">Mağaza: ${escapeHtml(store?.name || "Atanmamış")}${u.disabled ? " · Erişim kapalı" : ""}</div></div>`;
+    registeredUsersList.appendChild(row);
+  });
   ciroAssignmentsList.innerHTML = "";
   const assigned = usersMeta.filter(u => u.assignedStoreId);
   if (assigned.length === 0) {
