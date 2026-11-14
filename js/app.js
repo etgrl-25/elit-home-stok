@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
-import { createWeltewStockPanel } from "./weltew-stock.js?v=25";
+import { createWeltewStockPanel } from "./weltew-stock.js?v=26";
 
 const EMAIL_SUFFIX = "@elithome.local";
 const PALETTE = [
@@ -139,6 +139,7 @@ const adminSettingsNavBtn = document.getElementById("adminSettingsNavBtn");
 const adminSettingsView = document.getElementById("adminSettingsView");
 const addCiroAssignmentBtn = document.getElementById("addCiroAssignmentBtn");
 const ciroAssignmentsList = document.getElementById("ciroAssignmentsList");
+const userPermissionList = document.getElementById("userPermissionList");
 const ciroStorePickerRow = document.getElementById("ciroStorePickerRow");
 const ciroAllStoresSection = document.getElementById("ciroAllStoresSection");
 
@@ -177,6 +178,7 @@ const searchTerms = {};         // storeId | "__showroom__" -> string
 let categoriesMeta = [];        // [{id, name, icon}]
 let showroomProducts = [];      // [{id, name, description, category, stock, image}]
 let isAdmin = false;
+let myCanViewCiro = true, myCanManageCiro = true;
 let kasaEntries = [];           // [{id, date, description, type, amount}]
 let ciroEntries = [];           // [{id, storeId, date, amount, note}]
 let selectedCiroMonth = null;   // "YYYY-MM"
@@ -439,16 +441,22 @@ function listenMyUserDoc(uid) {
       const data = snap.data();
       isAdmin = data.role === "admin";
       myAssignedStoreId = data.assignedStoreId || "";
+      myCanViewCiro = isAdmin || data.permissions?.canViewCiro !== false;
+      myCanManageCiro = isAdmin || data.permissions?.canManageCiro !== false;
     } else {
       isAdmin = false;
       myAssignedStoreId = "";
+      myCanViewCiro = true;
+      myCanManageCiro = true;
     }
 
     adminSettingsNavBtn.style.display = isAdmin ? "flex" : "none";
+    const ciroNav = document.querySelector('[data-view="ciro"]');
+    if (ciroNav) ciroNav.style.display = myCanViewCiro ? "flex" : "none";
 
     if (isAdmin) {
       listenUsers();
-    } else if (currentView === "adminSettings") {
+    } else if (currentView === "adminSettings" || (!myCanViewCiro && currentView === "ciro")) {
       switchView("overview");
     }
 
@@ -672,7 +680,10 @@ function monthLabel(ym) {
 function restartCiroListener() {
   if (ciroUnsub) { ciroUnsub(); ciroUnsub = null; }
 
-  if (isAdmin) {
+  if (!myCanViewCiro) {
+    ciroEntries = [];
+    if (currentView === "ciro") renderCiroView();
+  } else if (isAdmin) {
     const q = query(collection(db, "ciro"), orderBy("date", "desc"));
     ciroUnsub = onSnapshot(q, snap => {
       ciroEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -728,6 +739,7 @@ document.querySelectorAll("[data-ciro-payment]").forEach(b => b.addEventListener
 
 ciroAddForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (!myCanManageCiro) { showToast("Ciro kaydı ekleme yetkiniz kapalı."); return; }
   // Personel yalnızca kendine atanmış mağazaya ciro ekleyebilir; select kilitli olsa da
   // storeId burada tekrar zorlanır (ekstra güvenlik).
   let storeId = isAdmin ? ciroStoreSelect.value : myAssignedStoreId;
@@ -754,6 +766,7 @@ ciroAddForm.addEventListener("submit", async (e) => {
 });
 
 async function deleteCiroEntry(id, label, storeId) {
+  if (!myCanManageCiro) { showToast("Ciro kaydı silme yetkiniz kapalı."); return; }
   // Personel yalnızca kendi mağazasının kaydını silebilir.
   if (!isAdmin && storeId !== myAssignedStoreId) {
     showToast("Bu kaydı silme yetkiniz yok.");
@@ -803,6 +816,7 @@ function renderCiroCombinedTotals() {
 }
 
 function renderCiroView() {
+  if (!myCanViewCiro) return;
   const isElitAccount = auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX;
   const canViewFullCiro = isElitAccount && ciroFullAccess;
   ciroUnlockBtn.style.display = isElitAccount ? "inline-flex" : "none";
@@ -837,7 +851,7 @@ function renderCiroView() {
   }
 
   ciroStorePickerRow.style.display = "flex";
-  ciroAddForm.style.display = "flex";
+  ciroAddForm.style.display = myCanManageCiro ? "flex" : "none";
 
   if (!ciroStoreSelect.value) populateCiroStoreSelect();
   const storeId = ciroStoreSelect.value;
@@ -863,9 +877,9 @@ function renderCiroView() {
           <div class="kasa-row-date">${shortNote ? escapeHtml(shortNote) + " · " : ""}${escapeHtml(c.date || "")}${c.createdBy ? " · " + escapeHtml(c.createdBy) : ""}</div>
         </div>
         <div class="kasa-row-amount income">${formatCurrency(c.amount || 0)}</div>
-        <button type="button" class="del-btn" title="Kaydı sil">✕</button>
+        ${myCanManageCiro ? '<button type="button" class="del-btn" title="Kaydı sil">✕</button>' : ''}
       `;
-      row.querySelector(".del-btn").addEventListener("click", () => deleteCiroEntry(c.id, c.date || "", c.storeId));
+      row.querySelector(".del-btn")?.addEventListener("click", () => deleteCiroEntry(c.id, c.date || "", c.storeId));
       ciroDailyList.appendChild(row);
     });
   }
@@ -970,9 +984,7 @@ function renderAdminSettings() {
   const assigned = usersMeta.filter(u => u.assignedStoreId);
   if (assigned.length === 0) {
     ciroAssignmentsList.innerHTML = `<div class="empty-state">Henüz hiçbir kullanıcıya mağaza atanmadı.</div>`;
-    return;
-  }
-  assigned.forEach(u => {
+  } else assigned.forEach(u => {
     const store = storesMeta.find(s => s.id === u.assignedStoreId);
     const row = document.createElement("div");
     row.className = "kasa-row";
@@ -987,6 +999,18 @@ function renderAdminSettings() {
     row.querySelector('[data-role="edit"]').addEventListener("click", () => openAssignmentModal(u.id));
     row.querySelector(".del-btn").addEventListener("click", () => removeAssignment(u.id, u.username || u.id));
     ciroAssignmentsList.appendChild(row);
+  });
+  userPermissionList.innerHTML = "";
+  usersMeta.forEach(u => {
+    const row = document.createElement("div");
+    row.className = "kasa-row";
+    const isElitAdmin = u.role === "admin" || u.username === "elit";
+    const canView = isElitAdmin || u.permissions?.canViewCiro !== false;
+    const canManage = isElitAdmin || u.permissions?.canManageCiro !== false;
+    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">${escapeHtml(u.username || u.id)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ekler / siler</label>`;
+    const viewBox=row.querySelector('[data-permission="view"]'),manageBox=row.querySelector('[data-permission="manage"]');
+    const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked)manageBox.checked=false;manageBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
+    manageBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);manageBox.addEventListener("change",save);userPermissionList.appendChild(row);
   });
 }
 
