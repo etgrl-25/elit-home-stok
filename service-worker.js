@@ -1,9 +1,9 @@
-const CACHE_NAME = "elit-home-stok-v55-auto-personnel-reset";
+const CACHE_NAME = "elit-home-stok-v56-d1-movement-edit";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=31",
-  "./js/app.js?v=48",
+  "./js/app.js?v=49",
   "./js/weltew-stock.js?v=26",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",

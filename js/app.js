@@ -230,7 +230,7 @@ function renderStockMovements() {
   const correctedIds=new Set(allMovements.map(m=>m.correctsMovementId).filter(Boolean));
   const visibleMovements=allMovements.filter(m=>!correctedIds.has(m.id)&&!/kdv/i.test(String(m.note||''))).sort((a,b)=>new Date(b.createdAt?.toDate?.()||b.createdAt||0)-new Date(a.createdAt?.toDate?.()||a.createdAt||0));
   if (!visibleMovements.length) { movementList.innerHTML='<div class="ws-empty">Henüz stok giriş veya çıkış hareketi yok.</div>'; return; }
-  movementList.innerHTML=visibleMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=d1MovementProducts[m.productId]?.name || movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · '),canCorrect=!m.storage;return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b>${canCorrect?`<button type="button" class="mini-btn" data-correct-movement="${escapeHtml(m.id)}">Düzelt</button>`:''}</article>`;}).join('');
+  movementList.innerHTML=visibleMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=d1MovementProducts[m.productId]?.name || movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · ');return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b><button type="button" class="mini-btn" data-correct-movement="${escapeHtml(m.id)}">Düzenle</button></article>`;}).join('');
   movementList.querySelectorAll('[data-correct-movement]').forEach(button=>button.addEventListener('click',()=>correctStockMovement(allMovements.find(m=>m.id===button.dataset.correctMovement))));
 }
 async function correctStockMovement(movement) {
@@ -239,6 +239,16 @@ async function correctStockMovement(movement) {
   if (!Number.isFinite(quantity) || quantity<0) { showToast('Geçerli bir stok miktarı yazın.'); return; }
   const reason=prompt('Düzeltme nedeni (isteğe bağlı):','') ?? '';
   try {
+    if (movement.storage === 'd1-fallback') {
+      const product=d1MovementProducts[movement.productId];
+      if (!product) throw Error('Yedek stok kaydı bulunamadı. Sayfayı yenileyip tekrar deneyin.');
+      const token=await auth.currentUser.getIdToken();
+      const updatedProduct={...product,qty:quantity,updatedAt:new Date().toISOString()};
+      const correction={id:crypto.randomUUID(),productId:movement.productId,before:Number(product.qty)||0,after:quantity,moveType:'Düzeltme',note:reason||'Stok hareketi düzeltildi',correctsMovementId:movement.id,createdBy:auth.currentUser.uid,createdAt:new Date().toISOString(),storage:'d1-fallback'};
+      const response=await fetch('https://elit-home-assistant.ertugrulerturann.workers.dev/api/inventory/update',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({product:updatedProduct,movement:correction})});
+      const body=await response.json().catch(()=>({})); if(!response.ok)throw Error(body.error||'Düzeltme kaydedilemedi.');
+      d1MovementProducts[movement.productId]=updatedProduct; d1StockMovements=[correction,...d1StockMovements]; renderStockMovements(); showToast('Yedek stok hareketi düzeltildi.'); return;
+    }
     const productRef=doc(db,'weltewInventory','main','products',movement.productId);
     const correctionRef=doc(collection(db,'weltewInventory','main','movements'));
     await runTransaction(db,async transaction=>{const snapshot=await transaction.get(productRef);if(!snapshot.exists())throw Error('Ürün bulunamadı.');const before=Number(snapshot.data().qty)||0;transaction.update(productRef,{qty:quantity,updatedAt:serverTimestamp()});transaction.set(correctionRef,{productId:movement.productId,before,after:quantity,moveType:'Düzeltme',note:reason||'Stok hareketi düzeltildi',correctsMovementId:movement.id,createdBy:auth.currentUser.uid,createdAt:serverTimestamp()});});
