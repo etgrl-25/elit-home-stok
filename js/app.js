@@ -137,6 +137,7 @@ const kasaAllStoresList = document.getElementById("kasaAllStoresList");
 const adminSettingsNavBtn = document.getElementById("adminSettingsNavBtn");
 const adminSettingsView = document.getElementById("adminSettingsView");
 const registeredUsersList = document.getElementById("registeredUsersList");
+const resetUsersBtn = document.getElementById("resetUsersBtn");
 const addCiroAssignmentBtn = document.getElementById("addCiroAssignmentBtn");
 const addUserBtn = document.getElementById("addUserBtn");
 const ciroAssignmentsList = document.getElementById("ciroAssignmentsList");
@@ -1034,6 +1035,20 @@ function renderAdminSettings() {
     userPermissionList.appendChild(row);
   });
 }
+
+resetUsersBtn.addEventListener("click", async () => {
+  const targets=usersMeta.filter(user=>user.role !== "admin" && user.username !== "elit");
+  if (!targets.length) { showToast("Temizlenecek personel hesabı yok."); return; }
+  if (!confirm(`${targets.length} personel hesabının erişimi kapatılacak, mağaza ataması ve ciro yetkileri sıfırlanacak. Elit admin hesabı ve tüm satış/stok kayıtları korunur. Devam edilsin mi?`)) return;
+  resetUsersBtn.disabled=true;
+  try {
+    const batch=writeBatch(db);
+    targets.forEach(user=>batch.update(doc(db,"users",user.id),{disabled:true,assignedStoreId:"",permissions:{canViewCiro:false,canViewCiroHistory:false,canManageCiro:false}}));
+    await batch.commit();
+    showToast("Tüm personel hesapları pasife alındı.");
+  } catch(error) { showToast("Kullanıcılar temizlenemedi: "+error.message); }
+  finally { resetUsersBtn.disabled=false; }
+});
 
 async function removeAssignment(uid, label) {
   if (!confirm(`"${label}" kullanıcısının mağaza ataması kaldırılsın mı?`)) return;
