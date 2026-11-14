@@ -1,4 +1,5 @@
 const OWNER='elit@elithome.local';
+const OWNER_UID='597aNnZ9stVGFtkTXkdHQfJFk2i2';
 const ORIGIN='https://etgrl-25.github.io';
 let certificates={expires:0,keys:[]};
 const requests=new Map(),utf8=new TextEncoder();
@@ -11,7 +12,7 @@ function json(error,status){return Response.json({error},{status,headers:cors()}
 function sse(text){const data='data: '+JSON.stringify({choices:[{delta:{content:text},finish_reason:null}]})+'\n\n'+'data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\n'+'data: [DONE]\n\n';return new Response(data,{headers:{...cors(),'content-type':'text/event-stream; charset=utf-8','x-content-type-options':'nosniff'}});}
 async function verifyUser(token,project){
  if(typeof token!=='string'||token.length>12000)throw Error('invalid');const parts=token.split('.');if(parts.length!==3)throw Error('invalid');const header=JSON.parse(new TextDecoder().decode(decode(parts[0]))),claims=JSON.parse(new TextDecoder().decode(decode(parts[1]))),now=Date.now()/1000;
- if(header.alg!=='RS256'||typeof header.kid!=='string'||claims.aud!==project||claims.iss!=='https://securetoken.google.com/'+project||typeof claims.sub!=='string'||!claims.sub||claims.sub.length>128||!Number.isFinite(claims.exp)||claims.exp<=now||!Number.isFinite(claims.iat)||claims.iat>now+30||!Number.isFinite(claims.auth_time)||claims.auth_time>now+30||claims.email!==OWNER)throw Error('invalid');
+ if(header.alg!=='RS256'||typeof header.kid!=='string'||claims.aud!==project||claims.iss!=='https://securetoken.google.com/'+project||typeof claims.sub!=='string'||claims.sub!==OWNER_UID||!Number.isFinite(claims.exp)||claims.exp<=now||!Number.isFinite(claims.iat)||claims.iat>now+30||!Number.isFinite(claims.auth_time)||claims.auth_time>now+30||claims.email!==OWNER)throw Error('invalid');
  if(certificates.expires<Date.now()||!certificates.keys.some(key=>key.kid===header.kid)){const response=await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com',{signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error('certificate');const data=await response.json();certificates={keys:data.keys||[],expires:Date.now()+3600000};}
  const jwk=certificates.keys.find(key=>key.kid===header.kid);if(!jwk)throw Error('invalid');const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode(parts[2]),utf8.encode(parts[0]+'.'+parts[1])))throw Error('invalid');return {uid:claims.sub,email:claims.email};
 }
