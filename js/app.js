@@ -47,7 +47,6 @@ const passwordInput = document.getElementById("passwordInput");
 const loginMsg = document.getElementById("loginMsg");
 const submitBtn = document.getElementById("submitBtn");
 const tabLogin = document.getElementById("tabLogin");
-const tabSignup = document.getElementById("tabSignup");
 const currentUserLabel = document.getElementById("currentUserLabel");
 const logoutBtn = document.getElementById("logoutBtn");
 const toastEl = document.getElementById("toast");
@@ -234,19 +233,11 @@ function startStockMovements() {
   auth.currentUser?.getIdToken().then(token=>fetch('https://elit-home-assistant.ertugrulerturann.workers.dev/api/inventory/fallbacks',{method:'POST',headers:{Authorization:'Bearer '+token}})).then(response=>response.ok?response.json():null).then(data=>{if(!data)return;d1StockMovements=Array.isArray(data.movements)?data.movements:[];d1MovementProducts=Object.fromEntries((Array.isArray(data.products)?data.products:[]).filter(product=>product&&product.id).map(product=>[product.id,product]));if(currentView==='movements')renderStockMovements();}).catch(()=>{});
 }
 
-// ---------- Giriş / Kayıt sekmeleri ----------
+// ---------- Giriş ----------
 tabLogin.addEventListener("click", () => {
   mode = "login";
   tabLogin.classList.add("active");
-  tabSignup.classList.remove("active");
   submitBtn.textContent = "Giriş Yap";
-  loginMsg.textContent = "";
-});
-tabSignup.addEventListener("click", () => {
-  mode = "signup";
-  tabSignup.classList.add("active");
-  tabLogin.classList.remove("active");
-  submitBtn.textContent = "Hesap Oluştur";
   loginMsg.textContent = "";
 });
 
@@ -257,9 +248,9 @@ loginForm.addEventListener("submit", async (e) => {
     loginMsg.textContent = "Önce Firebase yapılandırmasını tamamlayın.";
     return;
   }
-  const username = usernameInput.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
+  const rawLogin = usernameInput.value.trim().toLowerCase();
   const password = passwordInput.value;
-  const email = username + EMAIL_SUFFIX;
+  const email = rawLogin.includes("@") ? rawLogin : rawLogin.replace(/[^a-z0-9._-]/g, "") + EMAIL_SUFFIX;
 
   submitBtn.disabled = true;
   loginMsg.textContent = "";
@@ -1095,15 +1086,15 @@ addUserBtn.addEventListener("click", openUserCreateModal);
 userCreateModalClose.addEventListener("click", closeUserCreateModal);
 userCreateModalBackdrop.addEventListener("click", event => { if (event.target === userCreateModalBackdrop) closeUserCreateModal(); });
 userCreateSave.addEventListener("click", async () => {
-  const username=userCreateName.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, ""), password=userCreatePassword.value, storeId=userCreateStore.value;
-  if (!username || username.length < 3) { userCreateMsg.textContent="En az 3 karakter kullanıcı adı yazın."; return; }
+  const email=userCreateName.value.trim().toLowerCase(), username=email.split("@")[0].replace(/[^a-z0-9._-]/g, ""), password=userCreatePassword.value, storeId=userCreateStore.value;
+  if (!/^\S+@\S+\.\S+$/.test(email)) { userCreateMsg.textContent="Geçerli bir e-posta yazın."; return; }
   if (password.length < 6) { userCreateMsg.textContent="Şifre en az 6 karakter olmalı."; return; }
   userCreateSave.disabled=true; userCreateMsg.textContent="Kullanıcı oluşturuluyor…";
   let secondaryApp;
   try {
     secondaryApp=initializeApp(FIREBASE_CONFIG, "admin-user-create-"+Date.now());
     const secondaryAuth=getAuth(secondaryApp), secondaryDb=getFirestore(secondaryApp);
-    const credential=await createUserWithEmailAndPassword(secondaryAuth, username+EMAIL_SUFFIX, password);
+    const credential=await createUserWithEmailAndPassword(secondaryAuth, email, password);
     await setDoc(doc(secondaryDb,"users",credential.user.uid),{username,email:credential.user.email,role:"user",assignedStoreId:"",permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
     await signOut(secondaryAuth);
     if (storeId) await updateDoc(doc(db,"users",credential.user.uid),{assignedStoreId:storeId});
