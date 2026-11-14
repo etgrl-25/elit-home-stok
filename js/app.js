@@ -1,7 +1,6 @@
-import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signOut
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
@@ -12,6 +11,7 @@ import { FIREBASE_CONFIG } from "./firebase-config.js";
 import { createWeltewStockPanel } from "./weltew-stock.js?v=26";
 
 const EMAIL_SUFFIX = "@elithome.local";
+const USER_ADMIN_API = "https://elit-home-assistant.ertugrulerturann.workers.dev/api/users/";
 const PALETTE = [
   { c: "#D42B2B" }, // kırmızı
   { c: "#1E7A5C" }, // yeşil
@@ -214,6 +214,19 @@ function showToast(text) {
   toastEl.textContent = text;
   toastEl.classList.add("show");
   setTimeout(() => toastEl.classList.remove("show"), 2200);
+}
+
+async function manageFirebaseUser(action, payload) {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error("Yönetici oturumu bulunamadı.");
+  const response = await fetch(USER_ADMIN_API + action, {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Kullanıcı işlemi yapılamadı.");
+  return data;
 }
 
 ciroUnlockBtn.addEventListener("click", () => {
@@ -1056,7 +1069,7 @@ function renderAdminSettings() {
     const viewBox=row.querySelector('[data-permission="view"]'),historyBox=row.querySelector('[data-permission="history"]'),manageBox=row.querySelector('[data-permission="manage"]');
     const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked){manageBox.checked=false;historyBox.checked=false;}manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canViewCiroHistory":historyBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
     manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);
-    row.querySelector('[data-user-delete]')?.addEventListener("click",async()=>{if(!confirm(`${accountName} kullanıcısı silinsin mi? Kullanıcının erişimi kaldırılır; stok, satış ve ciro kayıtları silinmez.`))return;try{await deleteDoc(doc(db,"users",u.id));showToast("Kullanıcı silindi.");}catch(error){showToast("Kullanıcı silinemedi: "+error.message);}});
+    row.querySelector('[data-user-delete]')?.addEventListener("click",async()=>{if(!confirm(`${accountName} kullanıcısı silinsin mi? Firebase giriş hesabı ve kullanıcı profili silinir; stok, satış ve ciro kayıtları silinmez.`))return;try{await manageFirebaseUser("delete",{uid:u.id});await deleteDoc(doc(db,"users",u.id));showToast("Kullanıcı tamamen silindi.");}catch(error){showToast("Kullanıcı silinemedi: "+error.message);}});
     userPermissionList.appendChild(row);
   });
 }
@@ -1069,6 +1082,7 @@ async function resetPersonnelAccess() {
   resetUsersBtn.disabled=true;
   try {
     const batch=writeBatch(db);
+    for (const user of targets) await manageFirebaseUser("delete",{uid:user.id});
     targets.forEach(user=>batch.delete(doc(db,"users",user.id)));
     await batch.commit();
     showToast("Tüm personel kullanıcıları silindi.");
@@ -1078,7 +1092,7 @@ async function resetPersonnelAccess() {
 resetUsersBtn.addEventListener("click", async () => {
   const targets=usersMeta.filter(user=>user.role !== "admin" && user.username !== "elit");
   if (!targets.length) { showToast("Silinecek personel hesabı yok."); return; }
-  if (!confirm(`${targets.length} personel kullanıcısı silinecek. Elit admin hesabı ile stok, satış ve ciro kayıtları korunur. Devam edilsin mi?`)) return;
+  if (!confirm(`${targets.length} personel kullanıcısının Firebase giriş hesabı ve profili silinecek. Elit admin hesabı ile stok, satış ve ciro kayıtları korunur. Devam edilsin mi?`)) return;
   await resetPersonnelAccess();
 });
 
@@ -1152,18 +1166,14 @@ userCreateSave.addEventListener("click", async () => {
   if (!username || username.length < 3) { userCreateMsg.textContent="En az 3 karakter kullanıcı adı yazın."; return; }
   if (password.length < 6) { userCreateMsg.textContent="Şifre en az 6 karakter olmalı."; return; }
   userCreateSave.disabled=true; userCreateMsg.textContent="Kullanıcı oluşturuluyor…";
-  let secondaryApp;
   try {
-    secondaryApp=initializeApp(FIREBASE_CONFIG, "admin-user-create-"+Date.now());
-    const secondaryAuth=getAuth(secondaryApp), secondaryDb=getFirestore(secondaryApp);
-    const credential=await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    await setDoc(doc(secondaryDb,"users",credential.user.uid),{username,email:credential.user.email,role:"user",assignedStoreId:"",permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
-    await signOut(secondaryAuth);
-    if (storeId) await updateDoc(doc(db,"users",credential.user.uid),{assignedStoreId:storeId});
+    const created=await manageFirebaseUser("create",{username,password});
+    await setDoc(doc(db,"users",created.uid),{username,email:created.email,role:"user",assignedStoreId:"",permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
+    if (storeId) await updateDoc(doc(db,"users",created.uid),{assignedStoreId:storeId});
     showToast(username+" kullanıcısı eklendi."); closeUserCreateModal();
   } catch (error) {
-    userCreateMsg.textContent=error.code==="auth/email-already-in-use"?"Bu kullanıcı adı zaten kullanılıyor.":error.code==="auth/weak-password"?"Şifre daha güçlü olmalı.":"Kullanıcı eklenemedi: "+error.message;
-  } finally { userCreateSave.disabled=false; if (secondaryApp) await deleteApp(secondaryApp).catch(()=>{}); }
+    userCreateMsg.textContent="Kullanıcı eklenemedi: "+error.message;
+  } finally { userCreateSave.disabled=false; }
 });
 assignmentModalClose.addEventListener("click", closeAssignmentModal);
 assignmentModalBackdrop.addEventListener("click", (e) => {
