@@ -1,10 +1,10 @@
-const CACHE_NAME = "elit-home-stok-v40-lock-month-history";
+const CACHE_NAME = "elit-home-stok-v41-d1-stock-fallback";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=30",
-  "./js/app.js?v=33",
-  "./js/weltew-stock.js?v=23",
+  "./js/app.js?v=34",
+  "./js/weltew-stock.js?v=24",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
   "./js/stock-assistant.js?v=22",

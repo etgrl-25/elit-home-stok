@@ -46,6 +46,12 @@ export function createWeltewStockPanel({auth,db}) {
   const allowed=()=>canAccessWeltew(user)&&auth?.currentUser?.uid===user.uid&&canAccessWeltew(auth.currentUser);
   const requireOwner=()=>{if(!allowed()) throw Error('Bu bölüm yalnızca elit hesabına açıktır.');};
   const message=text=>{$('message').textContent=text;};
+  async function saveQuotaFallback(product,movement){
+    const token=await auth.currentUser.getIdToken();
+    const response=await fetch('https://elit-home-assistant.ertugrulerturann.workers.dev/api/inventory/update',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({product,movement})});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok)throw Error(body.error||'Stok çıkışı yedek kayda alınamadı.');
+  }
   const assistant=createStockAssistant({view,getRows:()=>rows,allowed,isLoading:()=>loading,onOpen:()=>openStock(),getToken:()=>auth.currentUser.getIdToken()});
   function clear() {assistant.clear();generation++;$('import-dialog').close();importFile=null;importPlan=null;$('zero-dialog').close();$('zero-form').reset();if(unsubscribe)unsubscribe();unsubscribe=null;rows=[];page=1;opened=false;editingId=null;loading=false;importing=false;$('import').disabled=false;$('search').value='';$('category').value='';$('warehouse').value='';$('status').value='';$('dialog').close();$('form').reset();$('form-message').textContent='';message('');render();}
   function options(key,field,label) {const el=$(key),prior=el.value;const vals=[...new Set(rows.flatMap(p=>key==='category'?[p.category,...getInventoryGroups(p)]:[p[field]]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr'));el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${escape(v)}">${escape(v)}</option>`).join('');el.value=vals.includes(prior)?prior:'';}
@@ -227,7 +233,19 @@ export function createWeltewStockPanel({auth,db}) {
       const ref=doc(db,'weltewInventory','main','products',id),movement=doc(collection(db,'weltewInventory','main','movements'));
       await runTransaction(db,async transaction=>{requireOwner();if(token!==generation)throw Error('Oturum değişti.');const snap=await transaction.get(ref);if(!snap.exists())throw Error('Ürün bulunamadı.');requireOwner();if(token!==generation)throw Error('Oturum değişti.');transaction.update(ref,{qty:quantity,updatedAt:serverTimestamp()});transaction.set(movement,{productId:id,before:Number(snap.data().qty)||0,after:quantity,moveType,customer,source,destination,note,createdBy:user.uid,createdAt:serverTimestamp()});});
       if(token===generation){$('dialog').close();message('Stok miktarı güncellendi.');}
-    }catch(error){if(token===generation)$('form-message').textContent=error.code==='permission-denied'?'Bu işlem için veritabanı erişimi reddedildi.':error.code==='resource-exhausted'?'Firebase günlük işlem kotası doldu. Kota sıfırlanınca tekrar deneyin.':error.message;}finally{$('save').disabled=false;}
+    }catch(error){
+      if(error.code==='resource-exhausted'){
+        try{
+          const current=rows.find(product=>product.id===id);
+          if(!current)throw Error('Ürün bulunamadı. Sayfayı yenileyip tekrar deneyin.');
+          const now=new Date().toISOString();
+          const updated={...current,qty:quantity,updatedAt:now};
+          const fallbackMovement={id:crypto.randomUUID(),productId:id,before:Number(current.qty)||0,after:quantity,moveType,customer,source,destination,note,createdBy:user.uid,createdAt:now,storage:'d1-fallback'};
+          await saveQuotaFallback(updated,fallbackMovement);
+          if(token===generation){rows=rows.map(product=>product.id===id?updated:product);render();$('dialog').close();message('Firebase kotası dolu olduğu için stok işlemi güvenli yedek kayda alındı.');}
+        }catch(fallbackError){if(token===generation)$('form-message').textContent=fallbackError.message;}
+      }else if(token===generation)$('form-message').textContent=error.code==='permission-denied'?'Bu işlem için veritabanı erişimi reddedildi.':error.message;
+    }finally{$('save').disabled=false;}
   });
   function openStock(){if(!allowed())return;opened=true;if(unsubscribe)return;const token=generation;loading=true;message('Stoklar yükleniyor…');render();unsubscribe=onSnapshot(collection(db,'weltewInventory','main','products'),snapshot=>{if(!allowed()||token!==generation)return;loading=false;rows=snapshot.docs.map(d=>({...d.data(),id:d.id,qty:Number(d.data().qty)||0,buy:Number(d.data().buy)||0,name:String(d.data().name||'')}));message(rows.length?'':'Stok dosyanızı aktararak başlayabilirsiniz.');render();},error=>{if(token!==generation)return;loading=false;rows=[];message(error.code==='permission-denied'?'Bu stoklar için erişim izni yok. Firebase kuralları kontrol edilmeli.':'Stoklar yüklenemedi. Bağlantınızı kontrol edin.');render();});}
   render();
