@@ -5,7 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
-  onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch, getDoc, getDocsFromServer, Timestamp
+  onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch, getDoc, getDocsFromServer, Timestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
@@ -224,9 +224,24 @@ ciroUnlockBtn.addEventListener("click", () => {
 
 function formatMovementTime(value) { const date=value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date) ? date.toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'}) : 'Tarih bekleniyor'; }
 function renderStockMovements() {
-  const visibleMovements=[...stockMovements,...d1StockMovements].filter((m,index,list)=>list.findIndex(item=>item.id===m.id)===index).filter(m=>!/kdv/i.test(String(m.note||''))).sort((a,b)=>new Date(b.createdAt?.toDate?.()||b.createdAt||0)-new Date(a.createdAt?.toDate?.()||a.createdAt||0));
+  const allMovements=[...stockMovements,...d1StockMovements].filter((m,index,list)=>list.findIndex(item=>item.id===m.id)===index);
+  const correctedIds=new Set(allMovements.map(m=>m.correctsMovementId).filter(Boolean));
+  const visibleMovements=allMovements.filter(m=>!correctedIds.has(m.id)&&!/kdv/i.test(String(m.note||''))).sort((a,b)=>new Date(b.createdAt?.toDate?.()||b.createdAt||0)-new Date(a.createdAt?.toDate?.()||a.createdAt||0));
   if (!visibleMovements.length) { movementList.innerHTML='<div class="ws-empty">Henüz stok giriş veya çıkış hareketi yok.</div>'; return; }
-  movementList.innerHTML=visibleMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=d1MovementProducts[m.productId]?.name || movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · ');return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b></article>`;}).join('');
+  movementList.innerHTML=visibleMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=d1MovementProducts[m.productId]?.name || movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · '),canCorrect=!m.storage;return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b>${canCorrect?`<button type="button" class="mini-btn" data-correct-movement="${escapeHtml(m.id)}">Düzelt</button>`:''}</article>`;}).join('');
+  movementList.querySelectorAll('[data-correct-movement]').forEach(button=>button.addEventListener('click',()=>correctStockMovement(allMovements.find(m=>m.id===button.dataset.correctMovement))));
+}
+async function correctStockMovement(movement) {
+  if (!movement || auth?.currentUser?.email !== 'elit'+EMAIL_SUFFIX) return;
+  const quantity=Number(prompt('Doğru stok miktarını yazın:', String(movement.after ?? 0)));
+  if (!Number.isFinite(quantity) || quantity<0) { showToast('Geçerli bir stok miktarı yazın.'); return; }
+  const reason=prompt('Düzeltme nedeni (isteğe bağlı):','') ?? '';
+  try {
+    const productRef=doc(db,'weltewInventory','main','products',movement.productId);
+    const correctionRef=doc(collection(db,'weltewInventory','main','movements'));
+    await runTransaction(db,async transaction=>{const snapshot=await transaction.get(productRef);if(!snapshot.exists())throw Error('Ürün bulunamadı.');const before=Number(snapshot.data().qty)||0;transaction.update(productRef,{qty:quantity,updatedAt:serverTimestamp()});transaction.set(correctionRef,{productId:movement.productId,before,after:quantity,moveType:'Düzeltme',note:reason||'Stok hareketi düzeltildi',correctsMovementId:movement.id,createdBy:auth.currentUser.uid,createdAt:serverTimestamp()});});
+    showToast('Hareket düzeltildi. Eski kayıt listeden kaldırıldı.');
+  } catch(error) { showToast(error.code==='resource-exhausted'?'Firebase kotası dolu; düzeltme şu an kaydedilemedi.':error.message); }
 }
 function startStockMovements() {
   if (movementsUnsub || !db) return;
