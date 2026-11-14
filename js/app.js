@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signOut
@@ -138,6 +138,7 @@ const kasaAllStoresList = document.getElementById("kasaAllStoresList");
 const adminSettingsNavBtn = document.getElementById("adminSettingsNavBtn");
 const adminSettingsView = document.getElementById("adminSettingsView");
 const addCiroAssignmentBtn = document.getElementById("addCiroAssignmentBtn");
+const addUserBtn = document.getElementById("addUserBtn");
 const ciroAssignmentsList = document.getElementById("ciroAssignmentsList");
 const userPermissionList = document.getElementById("userPermissionList");
 const ciroStorePickerRow = document.getElementById("ciroStorePickerRow");
@@ -149,6 +150,13 @@ const assignmentUserSelect = document.getElementById("assignmentUserSelect");
 const assignmentStoreSelect = document.getElementById("assignmentStoreSelect");
 const assignmentSaveBtn = document.getElementById("assignmentSaveBtn");
 const assignmentModalMsg = document.getElementById("assignmentModalMsg");
+const userCreateModalBackdrop = document.getElementById("userCreateModalBackdrop");
+const userCreateModalClose = document.getElementById("userCreateModalClose");
+const userCreateName = document.getElementById("userCreateName");
+const userCreatePassword = document.getElementById("userCreatePassword");
+const userCreateStore = document.getElementById("userCreateStore");
+const userCreateSave = document.getElementById("userCreateSave");
+const userCreateMsg = document.getElementById("userCreateMsg");
 
 // Hızlı tür ekleme modalı
 const categoryModalBackdrop = document.getElementById("categoryModalBackdrop");
@@ -178,7 +186,7 @@ const searchTerms = {};         // storeId | "__showroom__" -> string
 let categoriesMeta = [];        // [{id, name, icon}]
 let showroomProducts = [];      // [{id, name, description, category, stock, image}]
 let isAdmin = false;
-let myCanViewCiro = true, myCanManageCiro = true;
+let myCanViewCiro = true, myCanManageCiro = true, myCanViewCiroHistory = false;
 let kasaEntries = [];           // [{id, date, description, type, amount}]
 let ciroEntries = [];           // [{id, storeId, date, amount, note}]
 let selectedCiroMonth = null;   // "YYYY-MM"
@@ -422,8 +430,10 @@ async function ensureUserDoc(user) {
     if (!snap.exists()) {
       const username = user.email.replace(EMAIL_SUFFIX, "");
       await setDoc(uref, {
-        username, role: "user", assignedStoreId: "", createdAt: serverTimestamp()
+        username, email: user.email, role: "user", assignedStoreId: "", createdAt: serverTimestamp()
       });
+    } else if (!snap.data().email) {
+      await updateDoc(uref, { email: user.email, username: snap.data().username || user.email.replace(EMAIL_SUFFIX, "") });
     }
   } catch (err) {
     console.error("[Kullanıcı belgesi] oluşturulamadı:", err);
@@ -443,11 +453,13 @@ function listenMyUserDoc(uid) {
       myAssignedStoreId = data.assignedStoreId || "";
       myCanViewCiro = isAdmin || data.permissions?.canViewCiro !== false;
       myCanManageCiro = isAdmin || data.permissions?.canManageCiro !== false;
+      myCanViewCiroHistory = isAdmin || data.permissions?.canViewCiroHistory === true;
     } else {
       isAdmin = false;
       myAssignedStoreId = "";
       myCanViewCiro = true;
       myCanManageCiro = true;
+      myCanViewCiroHistory = false;
     }
 
     adminSettingsNavBtn.style.display = isAdmin ? "flex" : "none";
@@ -818,7 +830,7 @@ function renderCiroCombinedTotals() {
 function renderCiroView() {
   if (!myCanViewCiro) return;
   const isElitAccount = auth?.currentUser?.email === 'elit' + EMAIL_SUFFIX;
-  const canViewFullCiro = isElitAccount && ciroFullAccess;
+  const canViewFullCiro = (isElitAccount && ciroFullAccess) || myCanViewCiroHistory;
   ciroUnlockBtn.style.display = isElitAccount ? "inline-flex" : "none";
   renderCiroCombinedTotals();
   document.getElementById("ciroYearSection").hidden = !canViewFullCiro || !storesMeta.length;
@@ -826,7 +838,7 @@ function renderCiroView() {
   document.getElementById("ciroMonthlySection").hidden = !canViewFullCiro;
   // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
   // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
-  ciroAllStoresSection.style.display = canViewFullCiro ? "block" : "none";
+  ciroAllStoresSection.style.display = isAdmin && canViewFullCiro ? "block" : "none";
 
   if (storesMeta.length === 0) {
     ciroStorePickerRow.style.display = "none";
@@ -988,9 +1000,10 @@ function renderAdminSettings() {
     const store = storesMeta.find(s => s.id === u.assignedStoreId);
     const row = document.createElement("div");
     row.className = "kasa-row";
+    const accountEmail = u.email || (u.username ? u.username + EMAIL_SUFFIX : "E-posta ilk girişte bağlanacak");
     row.innerHTML = `
       <div class="kasa-row-info">
-        <div class="kasa-row-desc">Kullanıcı: ${escapeHtml(u.username || "İsimsiz hesap")}</div>
+        <div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountEmail)}</div>
         <div class="kasa-row-date">Mağaza: ${escapeHtml(store ? store.name : "Atanmamış")}</div>
       </div>
       <button type="button" class="mini-btn" data-role="edit">Değiştir</button>
@@ -1007,10 +1020,12 @@ function renderAdminSettings() {
     const isElitAdmin = u.role === "admin" || u.username === "elit";
     const canView = isElitAdmin || u.permissions?.canViewCiro !== false;
     const canManage = isElitAdmin || u.permissions?.canManageCiro !== false;
-    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(u.username || "İsimsiz hesap")}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label>`;
-    const viewBox=row.querySelector('[data-permission="view"]'),manageBox=row.querySelector('[data-permission="manage"]');
-    const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked)manageBox.checked=false;manageBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
-    manageBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);manageBox.addEventListener("change",save);userPermissionList.appendChild(row);
+    const canHistory = isElitAdmin || u.permissions?.canViewCiroHistory === true;
+    const accountEmail = u.email || (u.username ? u.username + EMAIL_SUFFIX : "E-posta ilk girişte bağlanacak");
+    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountEmail)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label>`;
+    const viewBox=row.querySelector('[data-permission="view"]'),historyBox=row.querySelector('[data-permission="history"]'),manageBox=row.querySelector('[data-permission="manage"]');
+    const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked){manageBox.checked=false;historyBox.checked=false;}manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canViewCiroHistory":historyBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
+    manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);userPermissionList.appendChild(row);
   });
 }
 
@@ -1066,6 +1081,37 @@ function closeAssignmentModal() {
 }
 
 addCiroAssignmentBtn.addEventListener("click", () => openAssignmentModal(null));
+function openUserCreateModal() {
+  userCreateMsg.textContent = "";
+  userCreateName.value = "";
+  userCreatePassword.value = "";
+  userCreateStore.innerHTML = '<option value="">Mağaza atama (isteğe bağlı)</option>';
+  storesMeta.forEach(store => { const option=document.createElement("option"); option.value=store.id; option.textContent=store.name; userCreateStore.appendChild(option); });
+  userCreateModalBackdrop.style.display = "flex";
+  userCreateName.focus();
+}
+function closeUserCreateModal() { userCreateModalBackdrop.style.display = "none"; }
+addUserBtn.addEventListener("click", openUserCreateModal);
+userCreateModalClose.addEventListener("click", closeUserCreateModal);
+userCreateModalBackdrop.addEventListener("click", event => { if (event.target === userCreateModalBackdrop) closeUserCreateModal(); });
+userCreateSave.addEventListener("click", async () => {
+  const username=userCreateName.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, ""), password=userCreatePassword.value, storeId=userCreateStore.value;
+  if (!username || username.length < 3) { userCreateMsg.textContent="En az 3 karakter kullanıcı adı yazın."; return; }
+  if (password.length < 6) { userCreateMsg.textContent="Şifre en az 6 karakter olmalı."; return; }
+  userCreateSave.disabled=true; userCreateMsg.textContent="Kullanıcı oluşturuluyor…";
+  let secondaryApp;
+  try {
+    secondaryApp=initializeApp(FIREBASE_CONFIG, "admin-user-create-"+Date.now());
+    const secondaryAuth=getAuth(secondaryApp), secondaryDb=getFirestore(secondaryApp);
+    const credential=await createUserWithEmailAndPassword(secondaryAuth, username+EMAIL_SUFFIX, password);
+    await setDoc(doc(secondaryDb,"users",credential.user.uid),{username,email:credential.user.email,role:"user",assignedStoreId:"",permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
+    await signOut(secondaryAuth);
+    if (storeId) await updateDoc(doc(db,"users",credential.user.uid),{assignedStoreId:storeId});
+    showToast(username+" kullanıcısı eklendi."); closeUserCreateModal();
+  } catch (error) {
+    userCreateMsg.textContent=error.code==="auth/email-already-in-use"?"Bu kullanıcı adı zaten kullanılıyor.":error.code==="auth/weak-password"?"Şifre daha güçlü olmalı.":"Kullanıcı eklenemedi: "+error.message;
+  } finally { userCreateSave.disabled=false; if (secondaryApp) await deleteApp(secondaryApp).catch(()=>{}); }
+});
 assignmentModalClose.addEventListener("click", closeAssignmentModal);
 assignmentModalBackdrop.addEventListener("click", (e) => {
   if (e.target === assignmentModalBackdrop) closeAssignmentModal();

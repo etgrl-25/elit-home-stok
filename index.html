@@ -282,7 +282,7 @@
           </p>
           <div id="ciroAssignmentsList" class="kasa-list"></div>
           <section class="backup-section">
-            <div class="ciro-section-title">Kullanıcı Ciro Yetkileri</div>
+            <div class="ciro-section-title-row"><div class="ciro-section-title">Kullanıcı Ciro Yetkileri</div><button type="button" id="addUserBtn" class="mini-btn">+ Kullanıcı Ekle</button></div>
             <p class="admin-settings-hint">Her hesap için ciro sayfasını görme ve satış ekleme/silme yetkisini buradan açıp kapatabilirsiniz. Elit admin hesabı her zaman tam yetkilidir.</p>
             <div id="userPermissionList" class="kasa-list"></div>
           </section>
@@ -391,10 +391,22 @@
     </div>
   </div>
 
+  <div id="userCreateModalBackdrop" class="modal-backdrop" style="display:none;">
+    <div class="modal category-modal">
+      <button class="modal-close" id="userCreateModalClose" aria-label="Kapat">✕</button>
+      <div class="brand-inline" style="color:var(--ink);margin-bottom:14px;">Yeni Kullanıcı Ekle</div>
+      <div class="field"><label for="userCreateName">Kullanıcı adı</label><input id="userCreateName" autocomplete="off" placeholder="Örn. yoncali" /></div>
+      <div class="field"><label for="userCreatePassword">Şifre</label><input id="userCreatePassword" type="password" minlength="6" autocomplete="new-password" placeholder="En az 6 karakter" /></div>
+      <div class="field"><label for="userCreateStore">Mağaza</label><select id="userCreateStore"></select></div>
+      <button type="button" id="userCreateSave" class="primary-btn" style="margin-top:4px;">Kullanıcıyı Oluştur</button>
+      <div class="modal-msg" id="userCreateMsg"></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script type="module" src="js/app.js?v=37"></script>
+<script type="module" src="js/app.js?v=40"></script>
 </body>
 </html>
