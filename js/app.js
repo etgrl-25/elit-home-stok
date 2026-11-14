@@ -990,8 +990,8 @@ function renderAdminSettings() {
     row.className = "kasa-row";
     row.innerHTML = `
       <div class="kasa-row-info">
-        <div class="kasa-row-desc">${escapeHtml(u.username || u.id)}</div>
-        <div class="kasa-row-date">${escapeHtml(store ? store.name : "Mağaza silinmiş")}</div>
+        <div class="kasa-row-desc">Kullanıcı: ${escapeHtml(u.username || "İsimsiz hesap")}</div>
+        <div class="kasa-row-date">Mağaza: ${escapeHtml(store ? store.name : "Atanmamış")}</div>
       </div>
       <button type="button" class="mini-btn" data-role="edit">Değiştir</button>
       <button type="button" class="del-btn" title="Atamayı kaldır">✕</button>
@@ -1007,7 +1007,7 @@ function renderAdminSettings() {
     const isElitAdmin = u.role === "admin" || u.username === "elit";
     const canView = isElitAdmin || u.permissions?.canViewCiro !== false;
     const canManage = isElitAdmin || u.permissions?.canManageCiro !== false;
-    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">${escapeHtml(u.username || u.id)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ekler / siler</label>`;
+    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(u.username || "İsimsiz hesap")}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label>`;
     const viewBox=row.querySelector('[data-permission="view"]'),manageBox=row.querySelector('[data-permission="manage"]');
     const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked)manageBox.checked=false;manageBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
     manageBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);manageBox.addEventListener("change",save);userPermissionList.appendChild(row);

@@ -1,9 +1,9 @@
-const CACHE_NAME = "elit-home-stok-v43-admin-ciro-permissions";
+const CACHE_NAME = "elit-home-stok-v44-clear-user-store-labels";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=30",
-  "./js/app.js?v=36",
+  "./js/app.js?v=37",
   "./js/weltew-stock.js?v=26",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
