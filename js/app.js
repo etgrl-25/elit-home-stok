@@ -180,7 +180,7 @@ let isAdmin = false;
 let kasaEntries = [];           // [{id, date, description, type, amount}]
 let ciroEntries = [];           // [{id, storeId, date, amount, note}]
 let selectedCiroMonth = null;   // "YYYY-MM"
-let ciroFullAccess = sessionStorage.getItem("elit-ciro-full-access") === "1";
+let ciroFullAccess = false;
 
 // Admin Ayarları / kullanıcı-mağaza atamaları
 let currentUid = null;
@@ -206,9 +206,9 @@ function showToast(text) {
 
 ciroUnlockBtn.addEventListener("click", () => {
   if (auth?.currentUser?.email !== "elit" + EMAIL_SUFFIX) return;
-  if (ciroFullAccess) { ciroFullAccess=false; sessionStorage.removeItem("elit-ciro-full-access"); showToast("Yönetici ciro görünümü kapatıldı."); renderCiroView(); return; }
+  if (ciroFullAccess) { ciroFullAccess=false; showToast("Yönetici ciro görünümü kapatıldı."); renderCiroView(); return; }
   if (prompt("Yönetici ciro şifresi") !== "2525") { showToast("Şifre yanlış."); return; }
-  ciroFullAccess=true; sessionStorage.setItem("elit-ciro-full-access","1"); showToast("Tüm ciro detayları açıldı."); renderCiroView();
+  ciroFullAccess=true; showToast("Tüm ciro detayları açıldı."); renderCiroView();
 });
 
 function formatMovementTime(value) { const date=value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date) ? date.toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'}) : 'Tarih bekleniyor'; }
