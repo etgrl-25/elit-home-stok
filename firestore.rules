@@ -2,20 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // Eski tek mağaza atamaları (assignedStoreId) korunur. Yeni kullanıcılar için
+    // assignedStoreIds dizisiyle birden fazla mağazaya erişim verilebilir.
+    function canUseStore(storeId) {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return profile.role == "admin" || profile.assignedStoreId == storeId ||
+        (profile.keys().hasAny(["assignedStoreIds"]) && profile.assignedStoreIds.hasAny([storeId]));
+    }
+
     // ---- users: herkes okuyabilir, kendi belgesini (role:"user", assignedStoreId:"")
     // olarak oluşturabilir, ama sadece admin bir kullanıcının rolünü / mağaza atamasını
     // güncelleyebilir. ----
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.auth.uid == userId
+      allow create: if isAdmin() || (request.auth != null && request.auth.uid == userId
         && request.resource.data.role == "user"
-        && request.resource.data.assignedStoreId == "";
-      allow update: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+        && request.resource.data.assignedStoreId == "");
+      allow update: if isAdmin();
       // Kullanıcı profilleri yalnızca admin tarafından silinebilir. Bu, stok,
       // satış ve ciro kayıtlarını değil sadece /users altındaki erişim profilini siler.
-      allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+      allow delete: if isAdmin();
     }
 
     // ---- ciro: admin her mağazayı ekleyip silebilir; personel sadece kendine
@@ -23,28 +34,16 @@ service cloud.firestore {
     // zaten sorguyu personel için kendi mağazasıyla sınırlıyor). ----
     match /ciro/{entryId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedStoreId == request.resource.data.storeId
-      );
-      allow delete: if request.auth != null && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedStoreId == resource.data.storeId
-      );
+      allow create: if request.auth != null && canUseStore(request.resource.data.storeId);
+      allow delete: if request.auth != null && canUseStore(resource.data.storeId);
       allow update: if false;
     }
 
     // ---- kasaDefteri: ciro ile birebir aynı mantık. ----
     match /kasaDefteri/{entryId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedStoreId == request.resource.data.storeId
-      );
-      allow delete: if request.auth != null && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedStoreId == resource.data.storeId
-      );
+      allow create: if request.auth != null && canUseStore(request.resource.data.storeId);
+      allow delete: if request.auth != null && canUseStore(resource.data.storeId);
       allow update: if false;
     }
 

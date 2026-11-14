@@ -279,8 +279,8 @@
             <button type="button" id="addCiroAssignmentBtn" class="mini-btn">+ Ekle</button>
           </div>
           <p class="admin-settings-hint">
-            Bir kullanıcıya mağaza atadığınızda, o kullanıcı hem Ciro hem de Kasa Defteri
-            sayfalarında yalnızca atanan mağazaya ait kayıtları görebilir ve o mağaza için
+            Bir kullanıcıya bir veya birden fazla mağaza atadığınızda, o kullanıcı hem Ciro hem de Kasa Defteri
+            sayfalarında yalnızca atandığı mağazalara ait kayıtları görebilir ve o mağazalar için
             ekleme/silme yapabilir. Admin her zaman tüm mağazaların cirosunu ve kasa
             defterini görebilir.
           </p>
@@ -384,10 +384,9 @@
         </select>
       </div>
       <div class="field">
-        <label for="assignmentStoreSelect">Mağaza Seç</label>
-        <select id="assignmentStoreSelect">
-          <option value="">— Mağaza seçin —</option>
-        </select>
+        <label for="assignmentStoreSelect">Mağazaları Seç</label>
+        <select id="assignmentStoreSelect" multiple size="5" aria-describedby="assignmentStoreHelp"></select>
+        <small id="assignmentStoreHelp" class="field-hint">Birden fazla mağaza için Ctrl tuşuna basılı tutup seçin.</small>
       </div>
 
       <button type="button" id="assignmentSaveBtn" class="primary-btn" style="margin-top:4px;">Kaydet</button>
@@ -401,7 +400,7 @@
       <div class="brand-inline" style="color:var(--ink);margin-bottom:14px;">Yeni Kullanıcı Ekle</div>
       <div class="field"><label for="userCreateName">Kullanıcı adı</label><input id="userCreateName" autocomplete="off" placeholder="Örn. yoncali" /></div>
       <div class="field"><label for="userCreatePassword">Şifre</label><input id="userCreatePassword" type="password" minlength="6" autocomplete="new-password" placeholder="En az 6 karakter" /></div>
-      <div class="field"><label for="userCreateStore">Mağaza</label><select id="userCreateStore"></select></div>
+      <div class="field"><label for="userCreateStore">Mağazalar <span class="field-hint">(isteğe bağlı)</span></label><select id="userCreateStore" multiple size="5" aria-describedby="userCreateStoreHelp"></select><small id="userCreateStoreHelp" class="field-hint">Birden fazla mağaza için Ctrl tuşuna basılı tutup seçin.</small></div>
       <button type="button" id="userCreateSave" class="primary-btn" style="margin-top:4px;">Kullanıcıyı Oluştur</button>
       <div class="modal-msg" id="userCreateMsg"></div>
     </div>
@@ -411,6 +410,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script type="module" src="js/app.js?v=51"></script>
+<script type="module" src="js/app.js?v=52"></script>
 </body>
 </html>

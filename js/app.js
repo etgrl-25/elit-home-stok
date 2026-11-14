@@ -196,6 +196,7 @@ let ciroFullAccess = false;
 // Admin Ayarları / kullanıcı-mağaza atamaları
 let currentUid = null;
 let myAssignedStoreId = "";     // giriş yapan kullanıcıya atanmış mağaza id'si (admin değilse)
+let myAssignedStoreIds = [];     // çoklu mağaza atamaları; eski kayıtlarla uyumluluk için üstteki alan korunur
 let myUserDocUnsub = null;
 let usersUnsub = null;
 let usersMeta = [];             // [{id, username, role, assignedStoreId}]
@@ -451,6 +452,7 @@ function teardownListeners() {
   isAdmin = false;
   renderCiroCombinedTotals();
   myAssignedStoreId = "";
+  myAssignedStoreIds = [];
   usersMeta = [];
   editingAssignmentUid = null;
   adminSettingsNavBtn.style.display = "none";
@@ -472,6 +474,20 @@ async function ensureUserDoc(user) {
   }
 }
 
+function assignedStoreIdsOf(user) {
+  const values = Array.isArray(user?.assignedStoreIds) ? user.assignedStoreIds : [user?.assignedStoreId];
+  return [...new Set(values.filter(Boolean))];
+}
+
+function storeNamesFor(user) {
+  const names = assignedStoreIdsOf(user).map(id => storesMeta.find(store => store.id === id)?.name || id);
+  return names.length ? names.join(", ") : "Atanmamış";
+}
+
+function isMyAssignedStore(storeId) {
+  return myAssignedStoreIds.includes(storeId);
+}
+
 // ---------- Admin rolü + mağaza ataması (canlı dinleme) ----------
 // Firestore'da "users" koleksiyonunda, kullanıcının UID'si belge ID'si olan
 // bir belgede role: "admin" alanı varsa bu kullanıcı admindir. "assignedStoreId"
@@ -483,13 +499,15 @@ function listenMyUserDoc(uid) {
       const data = snap.data();
       if (data.disabled === true) { signOut(auth); return; }
       isAdmin = data.role === "admin";
-      myAssignedStoreId = data.assignedStoreId || "";
+      myAssignedStoreIds = assignedStoreIdsOf(data);
+      myAssignedStoreId = myAssignedStoreIds[0] || "";
       myCanViewCiro = isAdmin || data.permissions?.canViewCiro !== false;
       myCanManageCiro = isAdmin || data.permissions?.canManageCiro !== false;
       myCanViewCiroHistory = isAdmin || data.permissions?.canViewCiroHistory === true;
     } else {
       isAdmin = false;
       myAssignedStoreId = "";
+      myAssignedStoreIds = [];
       myCanViewCiro = true;
       myCanManageCiro = true;
       myCanViewCiroHistory = false;
@@ -513,6 +531,7 @@ function listenMyUserDoc(uid) {
   }, err => {
     isAdmin = false;
     myAssignedStoreId = "";
+    myAssignedStoreIds = [];
     renderCiroCombinedTotals();
     console.error("[Kullanıcı rolü] dinleme başarısız:", err);
   });
@@ -531,13 +550,15 @@ function restartKasaListener() {
       kasaEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (currentView === "kasadefteri") renderKasaDefteri();
     }, err => showToast("Kasa defteri alınamadı: " + err.message));
-  } else if (myAssignedStoreId) {
+  } else if (myAssignedStoreIds.length) {
     // Ciro dinleyicisinde olduğu gibi: where("storeId", "==", ...) ile
     // orderBy("date", "desc") birlikte kullanılırsa Firestore composite index
     // ister; index oluşturulmadığı sürece sorgu sessizce başarısız olur ve
     // personel kendi mağazasının kasa defteri kayıtlarını göremez. Bunu önlemek
     // için sadece storeId'ye göre filtreleyip sıralamayı JS tarafında yapıyoruz.
-    const q = query(collection(db, "kasaDefteri"), where("storeId", "==", myAssignedStoreId));
+    const q = myAssignedStoreIds.length === 1
+      ? query(collection(db, "kasaDefteri"), where("storeId", "==", myAssignedStoreIds[0]))
+      : query(collection(db, "kasaDefteri"), where("storeId", "in", myAssignedStoreIds.slice(0, 30)));
     kasaDefteriUnsub = onSnapshot(q, snap => {
       kasaEntries = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -553,7 +574,7 @@ function restartKasaListener() {
 function populateKasaStoreSelect() {
   const prev = kasaStoreSelect.value;
   kasaStoreSelect.innerHTML = "";
-  const allowedStores = isAdmin ? storesMeta : storesMeta.filter(s => s.id === myAssignedStoreId);
+  const allowedStores = isAdmin ? storesMeta : storesMeta.filter(s => isMyAssignedStore(s.id));
   allowedStores.forEach(s => {
     const opt = document.createElement("option");
     opt.value = s.id;
@@ -561,7 +582,7 @@ function populateKasaStoreSelect() {
     kasaStoreSelect.appendChild(opt);
   });
   if (prev && allowedStores.some(s => s.id === prev)) kasaStoreSelect.value = prev;
-  kasaStoreSelect.disabled = !isAdmin; // personel için mağaza seçimi kilitli (kendi mağazası)
+  kasaStoreSelect.disabled = !isAdmin && allowedStores.length <= 1;
 }
 kasaStoreSelect.addEventListener("change", renderKasaDefteri);
 
@@ -580,7 +601,7 @@ function renderKasaDefteri() {
     return;
   }
 
-  if (!isAdmin && !myAssignedStoreId) {
+  if (!isAdmin && !myAssignedStoreIds.length) {
     kasaStorePickerRow.style.display = "none";
     kasaAddForm.style.display = "none";
     kasaList.innerHTML = `<div class="store-empty-hint">Size henüz bir mağaza atanmadı. Yöneticinizle iletişime geçin.</div>`;
@@ -594,7 +615,7 @@ function renderKasaDefteri() {
   kasaStorePickerRow.style.display = "flex";
   kasaAddForm.style.display = "flex";
 
-  if (!kasaStoreSelect.value) populateKasaStoreSelect();
+  populateKasaStoreSelect();
   const storeId = kasaStoreSelect.value;
 
   const storeEntries = kasaEntries.filter(e => e.storeId === storeId);
@@ -662,9 +683,13 @@ kasaAddForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   // Personel yalnızca kendine atanmış mağazaya kayıt ekleyebilir; select kilitli olsa da
   // storeId burada tekrar zorlanır (ekstra güvenlik).
-  let storeId = isAdmin ? kasaStoreSelect.value : myAssignedStoreId;
+  let storeId = kasaStoreSelect.value;
   if (!storeId) {
     showToast(isAdmin ? "Önce bir mağaza seçin." : "Size henüz bir mağaza atanmadı.");
+    return;
+  }
+  if (!isAdmin && !isMyAssignedStore(storeId)) {
+    showToast("Bu mağaza için kayıt ekleme yetkiniz yok.");
     return;
   }
   const date = kasaDate.value;
@@ -689,7 +714,7 @@ kasaAddForm.addEventListener("submit", async (e) => {
 
 async function deleteKasaEntry(id, description, storeId) {
   // Personel yalnızca kendi mağazasının kaydını silebilir.
-  if (!isAdmin && storeId !== myAssignedStoreId) {
+  if (!isAdmin && !isMyAssignedStore(storeId)) {
     showToast("Bu kaydı silme yetkiniz yok.");
     return;
   }
@@ -734,7 +759,7 @@ function restartCiroListener() {
       ciroEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (currentView === "ciro") renderCiroView();
     }, err => showToast("Ciro kayıtları alınamadı: " + err.message));
-  } else if (myAssignedStoreId) {
+  } else if (myAssignedStoreIds.length) {
     // Not: Burada bilerek orderBy("date") KULLANILMIYOR. where("storeId", "==", ...)
     // ile orderBy("date") birlikte kullanılırsa Firestore bunun için özel bir
     // "composite index" (bileşik dizin) ister; bu dizin Firebase konsolunda
@@ -742,7 +767,9 @@ function restartCiroListener() {
     // başarısız olur ve personel kendi eklediği ciroyu hiç göremez (tam olarak
     // bildirdiğiniz sorun). Bunu önlemek için mağazaya göre filtreleyip
     // sıralamayı liste geldikten sonra JavaScript tarafında yapıyoruz.
-    const q = query(collection(db, "ciro"), where("storeId", "==", myAssignedStoreId));
+    const q = myAssignedStoreIds.length === 1
+      ? query(collection(db, "ciro"), where("storeId", "==", myAssignedStoreIds[0]))
+      : query(collection(db, "ciro"), where("storeId", "in", myAssignedStoreIds.slice(0, 30)));
     ciroUnsub = onSnapshot(q, snap => {
       ciroEntries = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -758,7 +785,7 @@ function restartCiroListener() {
 function populateCiroStoreSelect() {
   const prev = ciroStoreSelect.value;
   ciroStoreSelect.innerHTML = "";
-  const allowedStores = isAdmin ? storesMeta : storesMeta.filter(s => s.id === myAssignedStoreId);
+  const allowedStores = isAdmin ? storesMeta : storesMeta.filter(s => isMyAssignedStore(s.id));
   allowedStores.forEach(s => {
     const opt = document.createElement("option");
     opt.value = s.id;
@@ -766,7 +793,7 @@ function populateCiroStoreSelect() {
     ciroStoreSelect.appendChild(opt);
   });
   if (prev && allowedStores.some(s => s.id === prev)) ciroStoreSelect.value = prev;
-  ciroStoreSelect.disabled = !isAdmin; // personel için mağaza seçimi kilitli (kendi mağazası)
+  ciroStoreSelect.disabled = !isAdmin && allowedStores.length <= 1;
 }
 ciroStoreSelect.addEventListener("change", renderCiroView);
 
@@ -787,9 +814,13 @@ ciroAddForm.addEventListener("submit", async (e) => {
   if (!myCanManageCiro) { showToast("Ciro kaydı ekleme yetkiniz kapalı."); return; }
   // Personel yalnızca kendine atanmış mağazaya ciro ekleyebilir; select kilitli olsa da
   // storeId burada tekrar zorlanır (ekstra güvenlik).
-  let storeId = isAdmin ? ciroStoreSelect.value : myAssignedStoreId;
+  let storeId = ciroStoreSelect.value;
   if (!storeId) {
     showToast(isAdmin ? "Önce bir mağaza seçin." : "Size henüz bir mağaza atanmadı.");
+    return;
+  }
+  if (!isAdmin && !isMyAssignedStore(storeId)) {
+    showToast("Bu mağaza için satış ekleme yetkiniz yok.");
     return;
   }
   const date = ciroDate.value;
@@ -813,7 +844,7 @@ ciroAddForm.addEventListener("submit", async (e) => {
 async function deleteCiroEntry(id, label, storeId) {
   if (!myCanManageCiro) { showToast("Ciro kaydı silme yetkiniz kapalı."); return; }
   // Personel yalnızca kendi mağazasının kaydını silebilir.
-  if (!isAdmin && storeId !== myAssignedStoreId) {
+  if (!isAdmin && !isMyAssignedStore(storeId)) {
     showToast("Bu kaydı silme yetkiniz yok.");
     return;
   }
@@ -884,7 +915,7 @@ function renderCiroView() {
     return;
   }
 
-  if (!isAdmin && !myAssignedStoreId) {
+  if (!isAdmin && !myAssignedStoreIds.length) {
     ciroStorePickerRow.style.display = "none";
     ciroAddForm.style.display = "none";
     ciroDailyList.innerHTML = `<div class="store-empty-hint">Size henüz bir mağaza atanmadı. Yöneticinizle iletişime geçin.</div>`;
@@ -898,7 +929,7 @@ function renderCiroView() {
   ciroStorePickerRow.style.display = "flex";
   ciroAddForm.style.display = myCanManageCiro ? "flex" : "none";
 
-  if (!ciroStoreSelect.value) populateCiroStoreSelect();
+  populateCiroStoreSelect();
   const storeId = ciroStoreSelect.value;
 
   renderCiroYear();
@@ -1028,26 +1059,24 @@ function renderAdminSettings() {
   registeredUsersList.innerHTML = "";
   if (!usersMeta.length) registeredUsersList.innerHTML = '<div class="empty-state">Henüz kayıtlı kullanıcı yok.</div>';
   usersMeta.forEach(u => {
-    const store=storesMeta.find(s=>s.id===u.assignedStoreId);
     const name=u.username || u.email?.split("@")[0] || "Adı tanımlanmamış";
     const row=document.createElement("div");
     row.className="kasa-row";
-    row.innerHTML=`<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı adı: ${escapeHtml(name)}${u.role === "admin" ? " · Admin" : ""}</div><div class="kasa-row-date">Mağaza: ${escapeHtml(store?.name || "Atanmamış")}${u.disabled ? " · Erişim kapalı" : ""}</div></div>`;
+    row.innerHTML=`<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı adı: ${escapeHtml(name)}${u.role === "admin" ? " · Admin" : ""}</div><div class="kasa-row-date">Mağazalar: ${escapeHtml(storeNamesFor(u))}${u.disabled ? " · Erişim kapalı" : ""}</div></div>`;
     registeredUsersList.appendChild(row);
   });
   ciroAssignmentsList.innerHTML = "";
-  const assigned = usersMeta.filter(u => u.assignedStoreId);
+  const assigned = usersMeta.filter(u => assignedStoreIdsOf(u).length);
   if (assigned.length === 0) {
     ciroAssignmentsList.innerHTML = `<div class="empty-state">Henüz hiçbir kullanıcıya mağaza atanmadı.</div>`;
   } else assigned.forEach(u => {
-    const store = storesMeta.find(s => s.id === u.assignedStoreId);
     const row = document.createElement("div");
     row.className = "kasa-row";
     const accountName = u.username || "Adı tanımlanmamış hesap";
     row.innerHTML = `
       <div class="kasa-row-info">
         <div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}</div>
-        <div class="kasa-row-date">Mağaza: ${escapeHtml(store ? store.name : "Atanmamış")}</div>
+        <div class="kasa-row-date">Mağazalar: ${escapeHtml(storeNamesFor(u))}</div>
       </div>
       <button type="button" class="mini-btn" data-role="edit">Değiştir</button>
       <button type="button" class="del-btn" title="Atamayı kaldır">✕</button>
@@ -1099,7 +1128,7 @@ resetUsersBtn.addEventListener("click", async () => {
 async function removeAssignment(uid, label) {
   if (!confirm(`"${label}" kullanıcısının mağaza ataması kaldırılsın mı?`)) return;
   try {
-    await updateDoc(doc(db, "users", uid), { assignedStoreId: "" });
+    await updateDoc(doc(db, "users", uid), { assignedStoreId: "", assignedStoreIds: [] });
     showToast("Atama kaldırıldı.");
   } catch (err) {
     showToast("Kaldırılamadı: " + err.message);
@@ -1119,7 +1148,7 @@ function openAssignmentModal(uid) {
     assignmentUserSelect.appendChild(opt);
   });
 
-  assignmentStoreSelect.innerHTML = `<option value="">— Mağaza seçin —</option>`;
+  assignmentStoreSelect.innerHTML = "";
   storesMeta.forEach(s => {
     const opt = document.createElement("option");
     opt.value = s.id;
@@ -1131,11 +1160,12 @@ function openAssignmentModal(uid) {
     const u = usersMeta.find(x => x.id === editingAssignmentUid);
     assignmentUserSelect.value = editingAssignmentUid;
     assignmentUserSelect.disabled = true;
-    assignmentStoreSelect.value = u ? (u.assignedStoreId || "") : "";
+    const selectedStoreIds = assignedStoreIdsOf(u);
+    [...assignmentStoreSelect.options].forEach(option => { option.selected = selectedStoreIds.includes(option.value); });
   } else {
     assignmentUserSelect.disabled = false;
     assignmentUserSelect.value = "";
-    assignmentStoreSelect.value = "";
+    [...assignmentStoreSelect.options].forEach(option => { option.selected = false; });
   }
 
   assignmentModalBackdrop.style.display = "flex";
@@ -1152,7 +1182,7 @@ function openUserCreateModal() {
   userCreateMsg.textContent = "";
   userCreateName.value = "";
   userCreatePassword.value = "";
-  userCreateStore.innerHTML = '<option value="">Mağaza atama (isteğe bağlı)</option>';
+  userCreateStore.innerHTML = "";
   storesMeta.forEach(store => { const option=document.createElement("option"); option.value=store.id; option.textContent=store.name; userCreateStore.appendChild(option); });
   userCreateModalBackdrop.style.display = "flex";
   userCreateName.focus();
@@ -1162,14 +1192,14 @@ addUserBtn.addEventListener("click", openUserCreateModal);
 userCreateModalClose.addEventListener("click", closeUserCreateModal);
 userCreateModalBackdrop.addEventListener("click", event => { if (event.target === userCreateModalBackdrop) closeUserCreateModal(); });
 userCreateSave.addEventListener("click", async () => {
-  const username=userCreateName.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, ""), email=username+EMAIL_SUFFIX, password=userCreatePassword.value, storeId=userCreateStore.value;
+  const username=userCreateName.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, ""), email=username+EMAIL_SUFFIX, password=userCreatePassword.value, storeIds=[...userCreateStore.selectedOptions].map(option=>option.value);
   if (!username || username.length < 3) { userCreateMsg.textContent="En az 3 karakter kullanıcı adı yazın."; return; }
   if (password.length < 6) { userCreateMsg.textContent="Şifre en az 6 karakter olmalı."; return; }
+  if (storeIds.length > 30) { userCreateMsg.textContent="En fazla 30 mağaza atayabilirsiniz."; return; }
   userCreateSave.disabled=true; userCreateMsg.textContent="Kullanıcı oluşturuluyor…";
   try {
     const created=await manageFirebaseUser("create",{username,password});
-    await setDoc(doc(db,"users",created.uid),{username,email:created.email,role:"user",assignedStoreId:"",permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
-    if (storeId) await updateDoc(doc(db,"users",created.uid),{assignedStoreId:storeId});
+    await setDoc(doc(db,"users",created.uid),{username,email:created.email,role:"user",assignedStoreId:storeIds[0] || "",assignedStoreIds:storeIds,permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
     showToast(username+" kullanıcısı eklendi."); closeUserCreateModal();
   } catch (error) {
     userCreateMsg.textContent="Kullanıcı eklenemedi: "+error.message;
@@ -1182,11 +1212,12 @@ assignmentModalBackdrop.addEventListener("click", (e) => {
 
 assignmentSaveBtn.addEventListener("click", async () => {
   const uid = editingAssignmentUid || assignmentUserSelect.value;
-  const storeId = assignmentStoreSelect.value;
+  const storeIds = [...assignmentStoreSelect.selectedOptions].map(option => option.value);
   if (!uid) { assignmentModalMsg.textContent = "Lütfen bir kullanıcı seçin."; return; }
-  if (!storeId) { assignmentModalMsg.textContent = "Lütfen bir mağaza seçin."; return; }
+  if (!storeIds.length) { assignmentModalMsg.textContent = "Lütfen en az bir mağaza seçin."; return; }
+  if (storeIds.length > 30) { assignmentModalMsg.textContent = "En fazla 30 mağaza atayabilirsiniz."; return; }
   try {
-    await updateDoc(doc(db, "users", uid), { assignedStoreId: storeId });
+    await updateDoc(doc(db, "users", uid), { assignedStoreId: storeIds[0], assignedStoreIds: storeIds });
     showToast("Ciro ataması kaydedildi.");
     closeAssignmentModal();
   } catch (err) {
@@ -2072,7 +2103,7 @@ function renderCiroYear() {
   select.value = selected;
   const totalFor = id => ciroEntries.filter(c => c.storeId === id && (c.date || "").startsWith(selected + "-"))
     .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-  document.getElementById("ciroYearTotal").textContent = formatCurrency(totalFor(isAdmin ? ciroStoreSelect.value : myAssignedStoreId));
+  document.getElementById("ciroYearTotal").textContent = formatCurrency(totalFor(ciroStoreSelect.value));
   renderCiroCombinedTotals();
   const list = document.getElementById("ciroYearStores");
   list.replaceChildren();
