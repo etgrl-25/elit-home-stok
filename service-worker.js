@@ -1,9 +1,9 @@
-const CACHE_NAME = "elit-home-stok-v48-real-email-access";
+const CACHE_NAME = "elit-home-stok-v49-username-login";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=30",
-  "./js/app.js?v=41",
+  "./js/app.js?v=42",
   "./js/weltew-stock.js?v=26",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",

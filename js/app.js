@@ -250,7 +250,7 @@ loginForm.addEventListener("submit", async (e) => {
   }
   const rawLogin = usernameInput.value.trim().toLowerCase();
   const password = passwordInput.value;
-  const email = rawLogin.includes("@") ? rawLogin : rawLogin.replace(/[^a-z0-9._-]/g, "") + EMAIL_SUFFIX;
+  const email = rawLogin.replace(/[^a-z0-9._-]/g, "") + EMAIL_SUFFIX;
 
   submitBtn.disabled = true;
   loginMsg.textContent = "";
@@ -991,10 +991,10 @@ function renderAdminSettings() {
     const store = storesMeta.find(s => s.id === u.assignedStoreId);
     const row = document.createElement("div");
     row.className = "kasa-row";
-    const accountEmail = u.email || (u.username ? u.username + EMAIL_SUFFIX : "E-posta ilk girişte bağlanacak");
+    const accountName = u.username || "Adı tanımlanmamış hesap";
     row.innerHTML = `
       <div class="kasa-row-info">
-        <div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountEmail)}</div>
+        <div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}</div>
         <div class="kasa-row-date">Mağaza: ${escapeHtml(store ? store.name : "Atanmamış")}</div>
       </div>
       <button type="button" class="mini-btn" data-role="edit">Değiştir</button>
@@ -1012,8 +1012,8 @@ function renderAdminSettings() {
     const canView = isElitAdmin || u.permissions?.canViewCiro !== false;
     const canManage = isElitAdmin || u.permissions?.canManageCiro !== false;
     const canHistory = isElitAdmin || u.permissions?.canViewCiroHistory === true;
-    const accountEmail = u.email || (u.username ? u.username + EMAIL_SUFFIX : "E-posta ilk girişte bağlanacak");
-    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountEmail)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label>`;
+    const accountName = u.username || "Adı tanımlanmamış hesap";
+    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label>`;
     const viewBox=row.querySelector('[data-permission="view"]'),historyBox=row.querySelector('[data-permission="history"]'),manageBox=row.querySelector('[data-permission="manage"]');
     const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked){manageBox.checked=false;historyBox.checked=false;}manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canViewCiroHistory":historyBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
     manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);userPermissionList.appendChild(row);
@@ -1086,8 +1086,8 @@ addUserBtn.addEventListener("click", openUserCreateModal);
 userCreateModalClose.addEventListener("click", closeUserCreateModal);
 userCreateModalBackdrop.addEventListener("click", event => { if (event.target === userCreateModalBackdrop) closeUserCreateModal(); });
 userCreateSave.addEventListener("click", async () => {
-  const email=userCreateName.value.trim().toLowerCase(), username=email.split("@")[0].replace(/[^a-z0-9._-]/g, ""), password=userCreatePassword.value, storeId=userCreateStore.value;
-  if (!/^\S+@\S+\.\S+$/.test(email)) { userCreateMsg.textContent="Geçerli bir e-posta yazın."; return; }
+  const username=userCreateName.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, ""), email=username+EMAIL_SUFFIX, password=userCreatePassword.value, storeId=userCreateStore.value;
+  if (!username || username.length < 3) { userCreateMsg.textContent="En az 3 karakter kullanıcı adı yazın."; return; }
   if (password.length < 6) { userCreateMsg.textContent="Şifre en az 6 karakter olmalı."; return; }
   userCreateSave.disabled=true; userCreateMsg.textContent="Kullanıcı oluşturuluyor…";
   let secondaryApp;
