@@ -200,6 +200,8 @@ let myUserDocUnsub = null;
 let usersUnsub = null;
 let usersMeta = [];             // [{id, username, role, assignedStoreId}]
 let editingAssignmentUid = null;
+const BULK_RESET_ONCE_KEY = "elit-home-personnel-reset-20261114";
+let personnelResetRunning = false;
 
 let newCategoryIconData = "";
 let quickCategoryIconData = "";
@@ -995,6 +997,9 @@ function listenUsers() {
     usersMeta = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.username || a.id).localeCompare(b.username || b.id, "tr"));
+    if (auth?.currentUser?.email === "elit" + EMAIL_SUFFIX && !personnelResetRunning && !localStorage.getItem(BULK_RESET_ONCE_KEY)) {
+      resetPersonnelAccess(true);
+    }
     if (currentView === "adminSettings") renderAdminSettings();
   }, err => showToast("Kullanıcı listesi alınamadı: " + err.message));
 }
@@ -1051,18 +1056,26 @@ function renderAdminSettings() {
   });
 }
 
-resetUsersBtn.addEventListener("click", async () => {
+async function resetPersonnelAccess(automatic=false) {
+  if (personnelResetRunning) return;
+  personnelResetRunning=true;
   const targets=usersMeta.filter(user=>user.role !== "admin" && user.username !== "elit");
-  if (!targets.length) { showToast("Temizlenecek personel hesabı yok."); return; }
-  if (!confirm(`${targets.length} personel hesabının erişimi kapatılacak, mağaza ataması ve ciro yetkileri sıfırlanacak. Elit admin hesabı ve tüm satış/stok kayıtları korunur. Devam edilsin mi?`)) return;
+  if (!targets.length) { localStorage.setItem(BULK_RESET_ONCE_KEY,"done"); personnelResetRunning=false; showToast("Temizlenecek personel hesabı yok."); return; }
   resetUsersBtn.disabled=true;
   try {
     const batch=writeBatch(db);
     targets.forEach(user=>batch.update(doc(db,"users",user.id),{disabled:true,assignedStoreId:"",permissions:{canViewCiro:false,canViewCiroHistory:false,canManageCiro:false}}));
     await batch.commit();
+    localStorage.setItem(BULK_RESET_ONCE_KEY,"done");
     showToast("Tüm personel hesapları pasife alındı.");
   } catch(error) { showToast("Kullanıcılar temizlenemedi: "+error.message); }
-  finally { resetUsersBtn.disabled=false; }
+  finally { resetUsersBtn.disabled=false; personnelResetRunning=false; }
+}
+resetUsersBtn.addEventListener("click", async () => {
+  const targets=usersMeta.filter(user=>user.role !== "admin" && user.username !== "elit");
+  if (!targets.length) { showToast("Temizlenecek personel hesabı yok."); return; }
+  if (!confirm(`${targets.length} personel hesabının erişimi kapatılacak, mağaza ataması ve ciro yetkileri sıfırlanacak. Elit admin hesabı ve tüm satış/stok kayıtları korunur. Devam edilsin mi?`)) return;
+  await resetPersonnelAccess(false);
 });
 
 async function removeAssignment(uid, label) {
