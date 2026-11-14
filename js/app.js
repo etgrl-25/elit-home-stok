@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
-import { createWeltewStockPanel } from "./weltew-stock.js?v=24";
+import { createWeltewStockPanel } from "./weltew-stock.js?v=25";
 
 const EMAIL_SUFFIX = "@elithome.local";
 const PALETTE = [
@@ -169,7 +169,7 @@ let showroomUnsub = null;
 let kasaDefteriUnsub = null;
 let ciroUnsub = null;
 let movementsUnsub = null, movementProductsUnsub = null;
-let stockMovements = [], movementProducts = {};
+let stockMovements = [], movementProducts = {}, d1StockMovements = [], d1MovementProducts = {};
 const productUnsubs = {};       // storeId -> unsubscribe fn
 const storesMeta = [];          // [{id, name}]
 const storeProducts = {};       // storeId -> [{id, name, description, category, stock, image}]
@@ -213,14 +213,15 @@ ciroUnlockBtn.addEventListener("click", () => {
 
 function formatMovementTime(value) { const date=value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date) ? date.toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'}) : 'Tarih bekleniyor'; }
 function renderStockMovements() {
-  const visibleMovements=stockMovements.filter(m=>!/kdv/i.test(String(m.note||'')));
+  const visibleMovements=[...stockMovements,...d1StockMovements].filter((m,index,list)=>list.findIndex(item=>item.id===m.id)===index).filter(m=>!/kdv/i.test(String(m.note||''))).sort((a,b)=>new Date(b.createdAt?.toDate?.()||b.createdAt||0)-new Date(a.createdAt?.toDate?.()||a.createdAt||0));
   if (!visibleMovements.length) { movementList.innerHTML='<div class="ws-empty">Henüz stok giriş veya çıkış hareketi yok.</div>'; return; }
-  movementList.innerHTML=visibleMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · ');return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b></article>`;}).join('');
+  movementList.innerHTML=visibleMovements.slice(0,250).map(m=>{const before=Number(m.before)||0,after=Number(m.after)||0,delta=after-before,name=d1MovementProducts[m.productId]?.name || movementProducts[m.productId]?.name || 'Ürün kaydı',type=m.moveType || (delta>0?'Giriş':delta<0?'Çıkış':'Güncelleme'),route=[m.customer&&'Müşteri/Firma: '+m.customer,m.source&&'Nereden: '+m.source,m.destination&&'Nereye: '+m.destination].filter(Boolean).join(' · ');return `<article class="movement-row"><div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(route||m.note||'Açıklama yok')} · ${formatMovementTime(m.createdAt)}</small></div><span class="movement-type ${type==='Giriş'?'in':type==='Çıkış'?'out':'same'}">${escapeHtml(type)}</span><b>${before} → ${after} adet</b></article>`;}).join('');
 }
 function startStockMovements() {
   if (movementsUnsub || !db) return;
   movementProductsUnsub=onSnapshot(collection(db,'weltewInventory','main','products'),snap=>{movementProducts=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()])); if(currentView==='movements')renderStockMovements();});
   movementsUnsub=onSnapshot(query(collection(db,'weltewInventory','main','movements'),orderBy('createdAt','desc')),snap=>{stockMovements=snap.docs.map(d=>({id:d.id,...d.data()})); if(currentView==='movements')renderStockMovements();},()=>{movementList.innerHTML='<div class="ws-empty">Hareketler yüklenemedi.</div>';});
+  auth.currentUser?.getIdToken().then(token=>fetch('https://elit-home-assistant.ertugrulerturann.workers.dev/api/inventory/fallbacks',{method:'POST',headers:{Authorization:'Bearer '+token}})).then(response=>response.ok?response.json():null).then(data=>{if(!data)return;d1StockMovements=Array.isArray(data.movements)?data.movements:[];d1MovementProducts=Object.fromEntries((Array.isArray(data.products)?data.products:[]).filter(product=>product&&product.id).map(product=>[product.id,product]));if(currentView==='movements')renderStockMovements();}).catch(()=>{});
 }
 
 // ---------- Giriş / Kayıt sekmeleri ----------

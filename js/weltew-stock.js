@@ -52,6 +52,13 @@ export function createWeltewStockPanel({auth,db}) {
     const body=await response.json().catch(()=>({}));
     if(!response.ok)throw Error(body.error||'Stok çıkışı yedek kayda alınamadı.');
   }
+  async function readQuotaFallbacks(){
+    const token=await auth.currentUser.getIdToken();
+    const response=await fetch('https://elit-home-assistant.ertugrulerturann.workers.dev/api/inventory/fallbacks',{method:'POST',headers:{Authorization:'Bearer '+token}});
+    if(!response.ok)return [];
+    const body=await response.json();
+    return Array.isArray(body.products)?body.products:[];
+  }
   const assistant=createStockAssistant({view,getRows:()=>rows,allowed,isLoading:()=>loading,onOpen:()=>openStock(),getToken:()=>auth.currentUser.getIdToken()});
   function clear() {assistant.clear();generation++;$('import-dialog').close();importFile=null;importPlan=null;$('zero-dialog').close();$('zero-form').reset();if(unsubscribe)unsubscribe();unsubscribe=null;rows=[];page=1;opened=false;editingId=null;loading=false;importing=false;$('import').disabled=false;$('search').value='';$('category').value='';$('warehouse').value='';$('status').value='';$('dialog').close();$('form').reset();$('form-message').textContent='';message('');render();}
   function options(key,field,label) {const el=$(key),prior=el.value;const vals=[...new Set(rows.flatMap(p=>key==='category'?[p.category,...getInventoryGroups(p)]:[p[field]]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr'));el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${escape(v)}">${escape(v)}</option>`).join('');el.value=vals.includes(prior)?prior:'';}
@@ -247,7 +254,7 @@ export function createWeltewStockPanel({auth,db}) {
       }else if(token===generation)$('form-message').textContent=error.code==='permission-denied'?'Bu işlem için veritabanı erişimi reddedildi.':error.message;
     }finally{$('save').disabled=false;}
   });
-  function openStock(){if(!allowed())return;opened=true;if(unsubscribe)return;const token=generation;loading=true;message('Stoklar yükleniyor…');render();unsubscribe=onSnapshot(collection(db,'weltewInventory','main','products'),snapshot=>{if(!allowed()||token!==generation)return;loading=false;rows=snapshot.docs.map(d=>({...d.data(),id:d.id,qty:Number(d.data().qty)||0,buy:Number(d.data().buy)||0,name:String(d.data().name||'')}));message(rows.length?'':'Stok dosyanızı aktararak başlayabilirsiniz.');render();},error=>{if(token!==generation)return;loading=false;rows=[];message(error.code==='permission-denied'?'Bu stoklar için erişim izni yok. Firebase kuralları kontrol edilmeli.':'Stoklar yüklenemedi. Bağlantınızı kontrol edin.');render();});}
+  function openStock(){if(!allowed())return;opened=true;if(unsubscribe)return;const token=generation;loading=true;message('Stoklar yükleniyor…');render();unsubscribe=onSnapshot(collection(db,'weltewInventory','main','products'),async snapshot=>{if(!allowed()||token!==generation)return;loading=false;const firebaseRows=snapshot.docs.map(d=>({...d.data(),id:d.id,qty:Number(d.data().qty)||0,buy:Number(d.data().buy)||0,name:String(d.data().name||'')}));const backups=await readQuotaFallbacks().catch(()=>[]);if(token!==generation)return;const backupMap=new Map(backups.filter(p=>p&&p.id).map(p=>[p.id,{...p,qty:Number(p.qty)||0,buy:Number(p.buy)||0,name:String(p.name||'')} ]));rows=firebaseRows.map(p=>backupMap.get(p.id)||p);backupMap.forEach((p,id)=>{if(!firebaseRows.some(row=>row.id===id))rows.push(p);});message(rows.length?'':'Stok dosyanızı aktararak başlayabilirsiniz.');render();},error=>{if(token!==generation)return;loading=false;rows=[];message(error.code==='permission-denied'?'Bu stoklar için erişim izni yok. Firebase kuralları kontrol edilmeli.':'Stoklar yüklenemedi. Bağlantınızı kontrol edin.');render();});}
   render();
   return {
     setUser(next){clear();user=next;assistant.setVisible(canAccessWeltew(next));nav.style.display=canAccessWeltew(next)?'flex':'none';if(!canAccessWeltew(next))view.style.display='none';},
