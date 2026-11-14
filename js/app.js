@@ -808,7 +808,7 @@ function renderCiroView() {
   renderCiroCombinedTotals();
   document.getElementById("ciroYearSection").hidden = !canViewFullCiro || !storesMeta.length;
   document.getElementById("ciroDailySection").hidden = false;
-  document.getElementById("ciroMonthlySection").hidden = !isElitAccount;
+  document.getElementById("ciroMonthlySection").hidden = !canViewFullCiro;
   // "Tüm Mağazalar — Aylık Ciro" bölümü ve mağaza seçici sadece admin'e görünür/serbesttir;
   // personel için mağaza seçici, kendi mağazasında kilitli olarak görünmeye devam eder.
   ciroAllStoresSection.style.display = canViewFullCiro ? "block" : "none";

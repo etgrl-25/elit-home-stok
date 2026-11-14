@@ -1,9 +1,9 @@
-const CACHE_NAME = "elit-home-stok-v39-temporary-ciro-access";
+const CACHE_NAME = "elit-home-stok-v40-lock-month-history";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=30",
-  "./js/app.js?v=32",
+  "./js/app.js?v=33",
   "./js/weltew-stock.js?v=23",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
