@@ -1,6 +1,6 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
@@ -228,6 +228,29 @@ async function manageFirebaseUser(action, payload) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Kullanıcı işlemi yapılamadı.");
   return data;
+}
+
+// Kullanıcı yönetim sunucusu geçici olarak kullanılamazsa admin oturumunu
+// kapatmadan Firebase'in ikinci oturumunda kullanıcı oluşturur.
+async function createOrFindUserWithSecondaryAuth(username, password) {
+  const email = username + EMAIL_SUFFIX;
+  const secondaryApp = initializeApp(FIREBASE_CONFIG, "personnel-create-" + crypto.randomUUID());
+  const secondaryAuth = getAuth(secondaryApp);
+  try {
+    let credential;
+    try {
+      credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    } catch (error) {
+      if (error?.code !== "auth/email-already-in-use") throw error;
+      // İlk denemede giriş hesabı oluşmuş fakat profil belgesi yazılamamışsa
+      // aynı şifreyle oturum açıp eksik profili tamamlarız.
+      credential = await signInWithEmailAndPassword(secondaryAuth, email, password);
+    }
+    return { uid: credential.user.uid, email: credential.user.email || email };
+  } finally {
+    await signOut(secondaryAuth).catch(() => {});
+    await deleteApp(secondaryApp).catch(() => {});
+  }
 }
 
 ciroUnlockBtn.addEventListener("click", () => {
@@ -1198,7 +1221,14 @@ userCreateSave.addEventListener("click", async () => {
   if (storeIds.length > 30) { userCreateMsg.textContent="En fazla 30 mağaza atayabilirsiniz."; return; }
   userCreateSave.disabled=true; userCreateMsg.textContent="Kullanıcı oluşturuluyor…";
   try {
-    const created=await manageFirebaseUser("create",{username,password});
+    let created;
+    try {
+      created=await manageFirebaseUser("create",{username,password});
+    } catch (serverError) {
+      // Sunucu tarafındaki yönetim anahtarı geçici olarak çalışmazsa da
+      // kullanıcı ekleme devam eder; aynı kullanıcıda eksik profil tamamlanır.
+      created=await createOrFindUserWithSecondaryAuth(username,password);
+    }
     await setDoc(doc(db,"users",created.uid),{username,email:created.email,role:"user",assignedStoreId:storeIds[0] || "",assignedStoreIds:storeIds,permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
     showToast(username+" kullanıcısı eklendi."); closeUserCreateModal();
   } catch (error) {

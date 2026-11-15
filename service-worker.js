@@ -1,9 +1,9 @@
-const CACHE_NAME = "elit-home-stok-v59-multi-store-users";
+const CACHE_NAME = "elit-home-stok-v60-user-create-fallback";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=31",
-  "./js/app.js?v=52",
+  "./js/app.js?v=53",
   "./js/weltew-stock.js?v=26",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
