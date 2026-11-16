@@ -70,8 +70,20 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email == 'elit@elithome.local';
     }
+    function canViewWeltew() {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isWeltewOwner() || (profile.keys().hasAny(['permissions'])
+        && profile.permissions.keys().hasAny(['canViewWeltew'])
+        && profile.permissions.canViewWeltew == true);
+    }
+    function canViewStockMovements() {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isWeltewOwner() || (profile.keys().hasAny(['permissions'])
+        && profile.permissions.keys().hasAny(['canViewStockMovements'])
+        && profile.permissions.canViewStockMovements == true);
+    }
     match /weltewInventory/main/products/{productId} {
-      allow read: if isWeltewOwner();
+      allow read: if canViewWeltew() || canViewStockMovements();
       allow create, update: if isWeltewOwner()
         && request.resource.data.name is string
         && request.resource.data.sku is string
@@ -82,7 +94,7 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /weltewInventory/main/movements/{movementId} {
-      allow read: if isWeltewOwner();
+      allow read: if canViewStockMovements();
       allow create: if isWeltewOwner()
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.before is number

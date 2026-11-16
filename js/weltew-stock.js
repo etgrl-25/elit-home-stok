@@ -29,7 +29,7 @@ export async function prepareWeltewImport(records) {
   }));
 }
 
-export function createWeltewStockPanel({auth,db}) {
+export function createWeltewStockPanel({auth,db,canView=()=>false}) {
   const view=document.getElementById('weltewView'), nav=document.getElementById('weltewNavBtn');
   view.innerHTML=`<div class="ws-welcome"><div><p class="ws-eyebrow">ELİT HOME · ÖZEL ENVANTER</p><h1>Weltew Home Genel Stok</h1><p>Ürünlerinizi bulun, depo stoklarınızı tek yerde takip edin.</p></div><div class="brand-partner brand-partner-white"><span class="brand-partner-label">MARKA</span><img src="icons/weltew-logo-white.png" alt="Weltew Home"></div></div>
   <div class="ws-stats"><article><span>Ürün çeşidi</span><strong data-ws="count">0</strong></article><article><span>Toplam miktar</span><strong data-ws="quantity">0</strong></article><article><span>Stok maliyeti</span><strong data-ws="value">₺0</strong></article><article><span>Tükenen ürünler</span><strong data-ws="empty-count">0</strong></article></div>
@@ -43,8 +43,17 @@ export function createWeltewStockPanel({auth,db}) {
 
   const $=key=>view.querySelector(`[data-ws="${key}"]`);
   let user=null, rows=[], unsubscribe=null, page=1, generation=0, opened=false, editingId=null, loading=false, importing=false, zeroing=false, addingVat=false;
-  const allowed=()=>canAccessWeltew(user)&&auth?.currentUser?.uid===user.uid&&canAccessWeltew(auth.currentUser);
-  const requireOwner=()=>{if(!allowed()) throw Error('Bu bölüm yalnızca elit hesabına açıktır.');};
+  const isOwner=()=>canAccessWeltew(user)&&auth?.currentUser?.uid===user.uid&&canAccessWeltew(auth.currentUser);
+  const allowed=()=>Boolean(user)&&auth?.currentUser?.uid===user.uid&&(isOwner()||canView());
+  const requireOwner=()=>{if(!isOwner()) throw Error('Stok değiştirme yalnızca elit admin hesabına açıktır.');};
+  const syncAccess=()=>{
+    const editable=isOwner();
+    nav.style.display=allowed()?'flex':'none';
+    assistant.setVisible(allowed());
+    ['vat','vat-undo','zero-all','import'].forEach(key=>{ $(key).style.display=editable?'':'none'; });
+    view.querySelector('th:last-child').style.display=editable?'':'none';
+    if(!allowed()) view.style.display='none';
+  };
   const message=text=>{$('message').textContent=text;};
   async function saveQuotaFallback(product,movement){
     const token=await auth.currentUser.getIdToken();
@@ -68,7 +77,7 @@ export function createWeltewStockPanel({auth,db}) {
     const filtered=rows.filter(p=>matchesInventoryQuery(p,$('search').value)&&matchesInventoryCategory(p,$('category').value)&&(!$('warehouse').value||p.warehouse===$('warehouse').value)&&(!$('status').value||($('status').value==='empty'?p.qty<=0:p.qty>0))).sort((a,b)=>a.name.localeCompare(b.name,'tr'));
     $('count').textContent=num(rows.length);$('quantity').textContent=num(rows.reduce((s,p)=>s+p.qty,0));$('value').textContent=money(rows.reduce((s,p)=>s+p.qty*p.buy,0));$('empty-count').textContent=num(rows.filter(p=>p.qty<=0).length);
     const pages=Math.max(1,Math.ceil(filtered.length/40));page=Math.max(1,Math.min(page,pages));const offset=(page-1)*40;
-    $('rows').innerHTML=filtered.slice(offset,offset+40).map(p=>`<tr><td><b>${escape(p.name)}</b><small>${escape(p.sku)}</small></td><td>${escape(p.category||'—')}<small>${escape(p.warehouse||'—')}</small></td><td><b>${num(p.qty)}</b> <small class="ws-inline">adet</small></td><td>${money(p.buy)}${p.vatRate===0.1?'<small>%10 KDV eklendi</small>':''}</td><td><span class="ws-status ${p.qty>0?'ws-available':'ws-out'}">${p.qty>0?'Stokta':'Tükendi'}</span></td><td><button class="ws-button" data-ws-edit="${escape(p.id)}" aria-label="${escape(p.name)} stok miktarını güncelle">± Stok</button></td></tr>`).join('');
+    $('rows').innerHTML=filtered.slice(offset,offset+40).map(p=>`<tr><td><b>${escape(p.name)}</b><small>${escape(p.sku)}</small></td><td>${escape(p.category||'—')}<small>${escape(p.warehouse||'—')}</small></td><td><b>${num(p.qty)}</b> <small class="ws-inline">adet</small></td><td>${money(p.buy)}${p.vatRate===0.1?'<small>%10 KDV eklendi</small>':''}</td><td><span class="ws-status ${p.qty>0?'ws-available':'ws-out'}">${p.qty>0?'Stokta':'Tükendi'}</span></td>${isOwner()?`<td><button class="ws-button" data-ws-edit="${escape(p.id)}" aria-label="${escape(p.name)} stok miktarını güncelle">± Stok</button></td>`:''}</tr>`).join('');
     $('empty').hidden=filtered.length>0||loading;$('summary').textContent=filtered.length?`${num(filtered.length)} üründen ${num(offset+1)}–${num(Math.min(offset+40,filtered.length))} gösteriliyor`:'0 ürün';$('page').textContent=`${page} / ${pages}`;$('prev').disabled=page===1;$('next').disabled=page===pages;
   }
   ['search','category','warehouse','status'].forEach(key=>$(key).addEventListener(key==='search'?'input':'change',()=>{page=1;render();}));
@@ -257,7 +266,8 @@ export function createWeltewStockPanel({auth,db}) {
   function openStock(){if(!allowed())return;opened=true;if(unsubscribe)return;const token=generation;loading=true;message('Stoklar yükleniyor…');render();unsubscribe=onSnapshot(collection(db,'weltewInventory','main','products'),async snapshot=>{if(!allowed()||token!==generation)return;loading=false;const firebaseRows=snapshot.docs.map(d=>({...d.data(),id:d.id,qty:Number(d.data().qty)||0,buy:Number(d.data().buy)||0,name:String(d.data().name||'')}));const backups=await readQuotaFallbacks().catch(()=>[]);if(token!==generation)return;const backupMap=new Map(backups.filter(p=>p&&p.id).map(p=>[p.id,{...p,qty:Number(p.qty)||0,buy:Number(p.buy)||0,name:String(p.name||'')} ]));rows=firebaseRows.map(p=>backupMap.get(p.id)||p);backupMap.forEach((p,id)=>{if(!firebaseRows.some(row=>row.id===id))rows.push(p);});message(rows.length?'':'Stok dosyanızı aktararak başlayabilirsiniz.');render();},error=>{if(token!==generation)return;loading=false;rows=[];message(error.code==='permission-denied'?'Bu stoklar için erişim izni yok. Firebase kuralları kontrol edilmeli.':'Stoklar yüklenemedi. Bağlantınızı kontrol edin.');render();});}
   render();
   return {
-    setUser(next){clear();user=next;assistant.setVisible(canAccessWeltew(next));nav.style.display=canAccessWeltew(next)?'flex':'none';if(!canAccessWeltew(next))view.style.display='none';},
+    setUser(next){clear();user=next;syncAccess();},
+    syncAccess,
     allowed,
     open:openStock,
     close(){opened=false;},

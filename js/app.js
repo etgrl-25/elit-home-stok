@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
-import { createWeltewStockPanel } from "./weltew-stock.js?v=26";
+import { createWeltewStockPanel } from "./weltew-stock.js?v=27";
 
 const EMAIL_SUFFIX = "@elithome.local";
 const USER_ADMIN_API = "https://elit-home-assistant.ertugrulerturann.workers.dev/api/users/";
@@ -44,7 +44,7 @@ if (isConfigured) {
   db = getFirestore(app);
 }
 
-const weltewStock = createWeltewStockPanel({ auth, db });
+const weltewStock = createWeltewStockPanel({ auth, db, canView: () => isAdmin || myCanViewWeltew });
 
 // ---------- DOM refs ----------
 const loginScreen = document.getElementById("loginScreen");
@@ -196,6 +196,7 @@ let categoriesMeta = [];        // [{id, name, icon}]
 let showroomProducts = [];      // [{id, name, description, category, stock, image}]
 let isAdmin = false;
 let myCanViewCiro = true, myCanManageCiro = true, myCanViewCiroHistory = false;
+let myCanViewWeltew = false, myCanViewStockMovements = false;
 let kasaEntries = [];           // [{id, date, description, type, amount}]
 let ciroEntries = [];           // [{id, storeId, date, amount, note}]
 let selectedCiroMonth = null;   // "YYYY-MM"
@@ -399,7 +400,7 @@ const VIEW_TITLES = {
 
 function switchView(view) {
   if (view === "weltew" && !weltewStock.allowed()) return;
-  if (view === "movements" && !weltewStock.allowed()) return;
+  if (view === "movements" && !(isAdmin || myCanViewStockMovements)) return;
   document.getElementById("weltewView").style.display = view === "weltew" ? "block" : "none";
   movementsView.style.display = view === "movements" ? "block" : "none";
   if (view === "weltew") weltewStock.open();
@@ -435,7 +436,7 @@ if (isConfigured) {
     if (user) {
       currentUid = user.uid;
       weltewStock.setUser(user);
-      movementNavBtn.style.display = weltewStock.allowed() ? "flex" : "none";
+      movementNavBtn.style.display = "none";
       if (currentView === "weltew") {
         if (weltewStock.allowed()) weltewStock.open();
         else switchView("overview");
@@ -544,6 +545,8 @@ function listenMyUserDoc(uid) {
       myCanViewCiro = isAdmin || data.permissions?.canViewCiro !== false;
       myCanManageCiro = isAdmin || data.permissions?.canManageCiro !== false;
       myCanViewCiroHistory = isAdmin || data.permissions?.canViewCiroHistory === true;
+      myCanViewWeltew = isAdmin || data.permissions?.canViewWeltew === true;
+      myCanViewStockMovements = isAdmin || data.permissions?.canViewStockMovements === true;
     } else {
       isAdmin = false;
       myAssignedStoreId = "";
@@ -551,11 +554,16 @@ function listenMyUserDoc(uid) {
       myCanViewCiro = true;
       myCanManageCiro = true;
       myCanViewCiroHistory = false;
+      myCanViewWeltew = false;
+      myCanViewStockMovements = false;
     }
 
     adminSettingsNavBtn.style.display = isAdmin ? "flex" : "none";
     const ciroNav = document.querySelector('[data-view="ciro"]');
     if (ciroNav) ciroNav.style.display = myCanViewCiro ? "flex" : "none";
+    weltewStock.syncAccess();
+    movementNavBtn.style.display = (isAdmin || myCanViewStockMovements) ? "flex" : "none";
+    if ((currentView === "weltew" && !weltewStock.allowed()) || (currentView === "movements" && !(isAdmin || myCanViewStockMovements))) switchView("overview");
 
     if (isAdmin) {
       listenUsers();
@@ -1133,11 +1141,13 @@ function renderAdminSettings() {
     const canView = isElitAdmin || u.permissions?.canViewCiro !== false;
     const canManage = isElitAdmin || u.permissions?.canManageCiro !== false;
     const canHistory = isElitAdmin || u.permissions?.canViewCiroHistory === true;
+    const canViewWeltew = isElitAdmin || u.permissions?.canViewWeltew === true;
+    const canViewMovements = isElitAdmin || u.permissions?.canViewStockMovements === true;
     const accountName = u.username || "Adı tanımlanmamış hesap";
-    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro yetkilerini buradan yönet</div></div><div class="user-permission-options"><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label>${isElitAdmin ? "" : `<button type="button" class="mini-btn" data-user-delete>Kullanıcıyı Sil</button>`}</div>`;
-    const viewBox=row.querySelector('[data-permission="view"]'),historyBox=row.querySelector('[data-permission="history"]'),manageBox=row.querySelector('[data-permission="manage"]');
-    const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked){manageBox.checked=false;historyBox.checked=false;}manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canViewCiroHistory":historyBox.checked,"permissions.canManageCiro":manageBox.checked});showToast("Ciro yetkisi kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
-    manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);
+    row.innerHTML = `<div class="kasa-row-info"><div class="kasa-row-desc">Kullanıcı: ${escapeHtml(accountName)}${isElitAdmin ? " · Admin" : ""}</div><div class="kasa-row-date">Ciro ve stok görüntüleme yetkileri</div></div><div class="user-permission-options"><label><input type="checkbox" data-permission="view" ${canView ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Ciroyu görür</label><label><input type="checkbox" data-permission="history" ${canHistory ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Geçmiş ay toplamlarını görür</label><label><input type="checkbox" data-permission="manage" ${canManage ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Satış ekler / siler</label><label><input type="checkbox" data-permission="weltew" ${canViewWeltew ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Weltew Genel Stoğu görür</label><label><input type="checkbox" data-permission="movements" ${canViewMovements ? "checked" : ""} ${isElitAdmin ? "disabled" : ""}> Stok hareketlerini görür</label>${isElitAdmin ? "" : `<button type="button" class="mini-btn" data-user-delete>Kullanıcıyı Sil</button>`}</div>`;
+    const viewBox=row.querySelector('[data-permission="view"]'),historyBox=row.querySelector('[data-permission="history"]'),manageBox=row.querySelector('[data-permission="manage"]'),weltewBox=row.querySelector('[data-permission="weltew"]'),movementsBox=row.querySelector('[data-permission="movements"]');
+    const save=async()=>{if(isElitAdmin)return;try{if(!viewBox.checked){manageBox.checked=false;historyBox.checked=false;}manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;await updateDoc(doc(db,"users",u.id),{"permissions.canViewCiro":viewBox.checked,"permissions.canViewCiroHistory":historyBox.checked,"permissions.canManageCiro":manageBox.checked,"permissions.canViewWeltew":weltewBox.checked,"permissions.canViewStockMovements":movementsBox.checked});showToast("Kullanıcı yetkileri kaydedildi.");}catch(error){showToast("Yetki kaydedilemedi: "+error.message);}};
+    manageBox.disabled=!viewBox.checked;historyBox.disabled=!viewBox.checked;viewBox.addEventListener("change",save);historyBox.addEventListener("change",save);manageBox.addEventListener("change",save);weltewBox.addEventListener("change",save);movementsBox.addEventListener("change",save);
     row.querySelector('[data-user-delete]')?.addEventListener("click",async()=>{if(!confirm(`${accountName} kullanıcısı silinsin mi? Firebase giriş hesabı ve kullanıcı profili silinir; stok, satış ve ciro kayıtları silinmez.`))return;try{await manageFirebaseUser("delete",{uid:u.id});await deleteDoc(doc(db,"users",u.id));showToast("Kullanıcı tamamen silindi.");}catch(error){showToast("Kullanıcı silinemedi: "+error.message);}});
     userPermissionList.appendChild(row);
   });
@@ -1246,7 +1256,7 @@ userCreateSave.addEventListener("click", async () => {
       // kullanıcı ekleme devam eder; aynı kullanıcıda eksik profil tamamlanır.
       created=await createOrFindUserWithSecondaryAuth(username,password);
     }
-    await setDoc(doc(db,"users",created.uid),{username,email:created.email,role:"user",assignedStoreId:storeIds[0] || "",assignedStoreIds:storeIds,permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true},createdAt:serverTimestamp()});
+    await setDoc(doc(db,"users",created.uid),{username,email:created.email,role:"user",assignedStoreId:storeIds[0] || "",assignedStoreIds:storeIds,permissions:{canViewCiro:true,canViewCiroHistory:false,canManageCiro:true,canViewWeltew:false,canViewStockMovements:false},createdAt:serverTimestamp()});
     showToast(username+" kullanıcısı eklendi."); closeUserCreateModal();
   } catch (error) {
     userCreateMsg.textContent="Kullanıcı eklenemedi: "+error.message;

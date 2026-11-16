@@ -1,10 +1,10 @@
-const CACHE_NAME = "elit-home-stok-v61-turkish-usernames";
+const CACHE_NAME = "elit-home-stok-v62-stock-permissions";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/style.css?v=31",
-  "./js/app.js?v=54",
-  "./js/weltew-stock.js?v=26",
+  "./js/app.js?v=55",
+  "./js/weltew-stock.js?v=27",
   "./js/ai-chat.js?v=21",
   "./js/inventory-search.js?v=19",
   "./js/stock-assistant.js?v=22",
