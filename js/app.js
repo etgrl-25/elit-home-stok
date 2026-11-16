@@ -12,6 +12,14 @@ import { createWeltewStockPanel } from "./weltew-stock.js?v=26";
 
 const EMAIL_SUFFIX = "@elithome.local";
 const USER_ADMIN_API = "https://elit-home-assistant.ertugrulerturann.workers.dev/api/users/";
+function normalizeUsername(value) {
+  return String(value || "").trim().toLocaleLowerCase("tr-TR")
+    .replace(/[çğıöşü]/g, letter => ({ ç:"c", ğ:"g", ı:"i", ö:"o", ş:"s", ü:"u" })[letter])
+    .replace(/[^a-z0-9._-]/g, "");
+}
+function legacyUsername(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
+}
 const PALETTE = [
   { c: "#D42B2B" }, // kırmızı
   { c: "#1E7A5C" }, // yeşil
@@ -313,15 +321,24 @@ loginForm.addEventListener("submit", async (e) => {
     loginMsg.textContent = "Önce Firebase yapılandırmasını tamamlayın.";
     return;
   }
-  const rawLogin = usernameInput.value.trim().toLowerCase();
+  const rawLogin = usernameInput.value;
   const password = passwordInput.value;
-  const email = rawLogin.replace(/[^a-z0-9._-]/g, "") + EMAIL_SUFFIX;
+  const username = normalizeUsername(rawLogin);
+  const email = username + EMAIL_SUFFIX;
 
   submitBtn.disabled = true;
   loginMsg.textContent = "";
   try {
     if (mode === "login") {
-      await signInWithEmailAndPassword(auth, email, password);
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (primaryError) {
+        // Türkçe karakterler eski sürümde silinerek kaydedilmiş olabiliyordu.
+        // Örn. Göknur için önce goknur, gerekirse eski gknur hesabını dener.
+        const oldUsername = legacyUsername(rawLogin);
+        if (oldUsername === username) throw primaryError;
+        await signInWithEmailAndPassword(auth, oldUsername + EMAIL_SUFFIX, password);
+      }
     } else {
       await createUserWithEmailAndPassword(auth, email, password);
       showToast("Hesap oluşturuldu, giriş yapıldı.");
@@ -1215,7 +1232,7 @@ addUserBtn.addEventListener("click", openUserCreateModal);
 userCreateModalClose.addEventListener("click", closeUserCreateModal);
 userCreateModalBackdrop.addEventListener("click", event => { if (event.target === userCreateModalBackdrop) closeUserCreateModal(); });
 userCreateSave.addEventListener("click", async () => {
-  const username=userCreateName.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, ""), email=username+EMAIL_SUFFIX, password=userCreatePassword.value, storeIds=[...userCreateStore.selectedOptions].map(option=>option.value);
+  const username=normalizeUsername(userCreateName.value), email=username+EMAIL_SUFFIX, password=userCreatePassword.value, storeIds=[...userCreateStore.selectedOptions].map(option=>option.value);
   if (!username || username.length < 3) { userCreateMsg.textContent="En az 3 karakter kullanıcı adı yazın."; return; }
   if (password.length < 6) { userCreateMsg.textContent="Şifre en az 6 karakter olmalı."; return; }
   if (storeIds.length > 30) { userCreateMsg.textContent="En fazla 30 mağaza atayabilirsiniz."; return; }
